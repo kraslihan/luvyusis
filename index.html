@@ -76,31 +76,29 @@
     }
   }
 
-  /* Header and bottom nav are siblings of the scrolling container, so they
-     never move — only #view-container scrolls when content overflows.
-     Compact padding + safe-area insets keep them out of the iPhone notch
-     and home-indicator area without eating extra vertical space. */
-  #top-bar-holder{
-    flex:none;
-    padding:calc(10px + env(safe-area-inset-top)) 18px 0;
-    background:var(--bg);
-    position:relative;
-    z-index:5;
-  }
+  /* Bottom nav is a sibling of the scrolling container, so it never moves —
+     only #view-container scrolls when content overflows. There is no
+     separate header bar; safe-area-inset-top is applied directly to the
+     scroll container's top padding so content clears the iPhone notch. */
   #view-container{
     flex:1 1 auto;
     min-height:0;
-    padding:10px 18px 16px;
+    min-width:0;
+    padding:calc(14px + env(safe-area-inset-top)) 18px 16px;
     overflow-y:auto;
+    overflow-x:hidden;
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
   }
+  /* Grid/flex children default to min-width:auto, which lets a wide native
+     control (date picker, tabular numbers) push its column past 1fr and
+     force the whole page to feel horizontally scrollable. Force them to
+     shrink to their column instead of overflowing it. */
+  .grid-2 > *, .grid-3 > *, .weight-input-row > *{ min-width:0; }
+  .field, .field *{ max-width:100%; }
   #bottom-nav-holder{flex:none;}
 
   /* ---------- top bar ---------- */
-  .top-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
-  .top-bar h1{font-size:21px;font-weight:800;margin:0;}
-  .top-bar .sub{font-size:12.5px;color:var(--ink-dim);}
   .user-toggle{
     display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px;
   }
@@ -261,7 +259,6 @@
 </head>
 <body>
 <div id="app-shell">
-  <div id="top-bar-holder"></div>
   <div id="view-container"></div>
   <div id="bottom-nav-holder"></div>
 </div>
@@ -718,12 +715,10 @@ const App = { route: 'home', charts: {}, togetherTab: 'status', gateError: '' };
 function render() {
   const container = document.getElementById('view-container');
   const navHolder = document.getElementById('bottom-nav-holder');
-  const topHolder = document.getElementById('top-bar-holder');
 
   if (Store.mode() === 'gate') {
     container.innerHTML = renderGate();
     navHolder.innerHTML = '';
-    topHolder.innerHTML = '';
     wireGate();
     return;
   }
@@ -732,16 +727,12 @@ function render() {
   if (!s.onboarded[s.currentUser]) {
     container.innerHTML = renderOnboarding(s);
     navHolder.innerHTML = '';
-    topHolder.innerHTML = '';
     wireOnboarding();
     return;
   }
 
   navHolder.innerHTML = renderBottomNav();
   wireBottomNav();
-
-  topHolder.innerHTML = renderTopBar(s);
-  wireTopBar();
 
   let html = '';
   switch (App.route) {
@@ -791,38 +782,6 @@ function wireGate() {
 }
 
 /* ---------------------------------------------------------------------
-   9. TOP BAR
-   --------------------------------------------------------------------- */
-function renderTopBar(s) {
-  const isRemote = Store.mode() === 'remote';
-  const me = getUser(s, s.currentUser);
-  return `
-    <div class="top-bar">
-      <div>
-        <h1>${TITLE_MAP[App.route] || 'Anasayfa'}</h1>
-        ${isRemote
-          ? `<span class="sub">Merhaba, <strong>${esc(me.name)}</strong></span>`
-          : `<span class="sub">Görüntülenen: ${s.currentUser === 'A' ? '<strong>Ezgi</strong> / Aslı' : 'Ezgi / <strong>Aslı</strong>'}</span>`}
-      </div>
-      ${isRemote ? '' : `
-      <div class="user-toggle" id="user-toggle">
-        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}">Ezgi</button>
-        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}">Aslı</button>
-      </div>`}
-    </div>`;
-}
-function wireTopBar() {
-  const toggle = document.getElementById('user-toggle');
-  if (!toggle) return;
-  toggle.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-user]');
-    if (!btn) return;
-    Store.update(s => { s.currentUser = btn.dataset.user; });
-    render();
-  });
-}
-
-/* ---------------------------------------------------------------------
    10. BOTTOM NAV
    --------------------------------------------------------------------- */
 function renderBottomNav() {
@@ -852,7 +811,7 @@ function renderOnboarding(s) {
       <div class="card onboard-card">
         <div class="field"><label for="ob-start">Şu anki kilo (kg)</label><input id="ob-start" type="number" step="0.1" min="1" placeholder="örn. 78.4"></div>
         <div class="field"><label for="ob-goal">Hedef kilo (kg)</label><input id="ob-goal" type="number" step="0.1" min="1" placeholder="örn. 70"></div>
-        <div class="field"><label for="ob-date">Hedef tarih (opsiyonel)</label><input id="ob-date" type="date"></div>
+        <div class="field"><label for="ob-date">Hedef tarih (opsiyonel)</label><input id="ob-date" type="date" value="${keyMinusDays(todayKey(), -60)}" style="min-width:0;color-scheme:light;"></div>
         <div class="field"><label for="ob-water">Günlük su hedefi (bardak)</label><input id="ob-water" type="number" min="1" max="20" value="8"></div>
         <div class="field"><label for="ob-ex">Haftalık egzersiz hedefi (gün)</label><input id="ob-ex" type="number" min="1" max="7" value="3"></div>
         <button class="btn btn-primary" id="ob-save">Panoyu Oluştur</button>
