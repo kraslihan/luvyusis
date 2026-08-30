@@ -1,0 +1,1491 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Together — Health Tracker (Prototype)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f6f1e6;
+    --surface:#ffffff;
+    --surface-2:#eee6d4;
+    --ink:#2c2a22;
+    --ink-dim:#847c6c;
+    --accent:#7fa887;
+    --accent-strong:#4f7358;
+    --accent-soft:#e4ede2;
+    --gold:#e0a857;
+    --gold-soft:#f8ecd6;
+    --bad:#d98a76;
+    --bad-soft:#f8e3dd;
+    --border:rgba(44,42,34,0.10);
+    --shadow:0 1px 2px rgba(44,42,34,0.05), 0 10px 26px -14px rgba(44,42,34,0.22);
+    --radius-lg:22px;
+    --radius-md:16px;
+    --radius-sm:11px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Nunito',-apple-system,BlinkMacSystemFont,sans-serif;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{font-family:'Space Mono','Courier New',monospace;font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;cursor:pointer;}
+  input,textarea,select{font-family:inherit;}
+  a{color:inherit;}
+
+  /* ---------- app shell / phone frame on wide screens ---------- */
+  #app-shell{
+    max-width:460px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--bg);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  @media (min-width:520px){
+    body{ background:#e9e3d3; display:flex; justify-content:center; }
+    #app-shell{
+      margin:20px auto;
+      min-height:calc(100vh - 40px);
+      border-radius:32px;
+      box-shadow:0 30px 60px -30px rgba(44,42,34,0.35), 0 0 0 1px rgba(44,42,34,0.06);
+      overflow:hidden;
+    }
+  }
+
+  #view-container{
+    flex:1;
+    padding:18px 18px 100px;
+    overflow-y:auto;
+  }
+
+  /* ---------- top bar ---------- */
+  .top-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
+  .top-bar h1{font-size:21px;font-weight:800;margin:0;}
+  .top-bar .sub{font-size:12.5px;color:var(--ink-dim);}
+  .user-toggle{
+    display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px;
+  }
+  .user-toggle button{
+    border:none;background:transparent;padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--ink-dim);
+  }
+  .user-toggle button.active{background:var(--accent);color:#fff;}
+
+  /* ---------- generic cards / layout ---------- */
+  .card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:18px;margin-bottom:14px;}
+  .card.tight{padding:14px 16px;}
+  .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim);font-weight:800;margin:0 0 12px;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .stack{display:flex;flex-direction:column;gap:10px;}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+
+  .btn{
+    border:none;border-radius:var(--radius-md);padding:14px 18px;font-weight:800;font-size:15px;
+    min-height:50px;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  }
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:active{background:var(--accent-strong);}
+  .btn-soft{background:var(--accent-soft);color:var(--accent-strong);}
+  .btn-outline{background:var(--surface);color:var(--ink);border:1.5px solid var(--border);}
+  .btn-ghost{background:transparent;color:var(--ink-dim);font-weight:700;padding:8px 10px;min-height:auto;width:auto;}
+  .btn-sm{padding:9px 14px;font-size:13.5px;min-height:38px;width:auto;}
+  .btn-danger-ghost{background:transparent;color:var(--bad);font-weight:700;min-height:auto;padding:6px 8px;width:auto;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-bottom:6px;}
+  .field input[type=number], .field input[type=date], .field input[type=text], .field input[type=time], .field textarea, .field select{
+    width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
+    background:var(--surface-2);color:var(--ink);font-size:15px;min-height:46px;
+  }
+  .field textarea{resize:vertical;min-height:64px;font-family:inherit;}
+  .field input:focus, .field textarea:focus, .field select:focus, button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:800;padding:4px 10px;border-radius:999px;}
+  .pill-good{background:var(--accent-soft);color:var(--accent-strong);}
+  .pill-warn{background:var(--gold-soft);color:#8a6420;}
+  .pill-bad{background:var(--bad-soft);color:#a3453a;}
+  .pill-neutral{background:var(--surface-2);color:var(--ink-dim);}
+
+  .empty-state{
+    text-align:center;color:var(--ink-dim);font-size:13.5px;padding:26px 10px;
+    background:var(--surface-2);border-radius:var(--radius-md);
+  }
+
+  /* ---------- bottom nav ---------- */
+  .bottom-nav{
+    position:sticky;bottom:0;left:0;right:0;
+    background:rgba(255,255,255,0.92);backdrop-filter:blur(10px);
+    border-top:1px solid var(--border);
+    display:flex;
+    padding:8px 6px calc(8px + env(safe-area-inset-bottom));
+    z-index:20;
+  }
+  .nav-item{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
+    background:none;border:none;color:var(--ink-dim);padding:6px 2px;border-radius:14px;
+  }
+  .nav-item .ico{font-size:20px;line-height:1;}
+  .nav-item .lbl{font-size:10.5px;font-weight:700;}
+  .nav-item.active{color:var(--accent-strong);}
+  .nav-item.active .ico{transform:scale(1.08);}
+
+  /* ---------- home ---------- */
+  .streak-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
+  .streak-card{background:linear-gradient(160deg,var(--gold-soft),var(--surface));border-radius:var(--radius-lg);padding:16px;text-align:center;box-shadow:var(--shadow);}
+  .streak-card .n{font-size:30px;font-weight:800;color:var(--gold);}
+  .streak-card.together{background:linear-gradient(160deg,var(--accent-soft),var(--surface));}
+  .streak-card.together .n{color:var(--accent-strong);}
+  .streak-card .lbl{font-size:11.5px;color:var(--ink-dim);font-weight:700;margin-top:2px;}
+
+  .mini-stat{background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow);}
+  .mini-stat .lbl{font-size:11px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .mini-stat .val{font-size:18px;font-weight:800;margin-top:2px;}
+
+  .partner-strip{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow);margin-bottom:14px;}
+  .partner-strip .dot{width:10px;height:10px;border-radius:50%;flex:none;}
+  .dot-yes{background:var(--accent);}
+  .dot-no{background:var(--bad);}
+
+  /* ---------- today sections ---------- */
+  .weight-input-row{display:flex;gap:10px;align-items:flex-end;}
+  .weight-input-row .field{flex:1;margin-bottom:0;}
+
+  .water-row{display:flex;align-items:center;justify-content:center;gap:16px;padding:6px 0;}
+  .water-row .glasses{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:200px;}
+  .glass{width:18px;height:22px;border:2px solid var(--accent);border-top:none;border-radius:0 0 5px 5px;background:transparent;}
+  .glass.filled{background:var(--accent);}
+  .stepbtn{width:44px;height:44px;border-radius:50%;border:none;background:var(--accent-soft);color:var(--accent-strong);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .stepbtn:active{background:var(--accent);color:#fff;}
+
+  .list-item{border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;background:var(--surface);}
+  .list-item .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .list-item .meta{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+  .list-item img.photo{width:100%;border-radius:var(--radius-sm);margin-top:8px;max-height:160px;object-fit:cover;}
+  .meal-form, .exercise-form{background:var(--surface-2);border-radius:var(--radius-md);padding:14px;margin-bottom:14px;}
+  .estimate-box{background:var(--gold-soft);border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px;font-size:13px;}
+  .estimate-box .mid{font-size:17px;font-weight:800;color:#8a6420;}
+  .file-drop{border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center;font-size:13px;color:var(--ink-dim);background:var(--surface);}
+
+  /* ---------- progress / together charts ---------- */
+  .chart-wrap{position:relative;height:180px;margin-top:8px;}
+  .legend-row{display:flex;gap:14px;font-size:12px;color:var(--ink-dim);margin-top:8px;}
+  .legend-dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;}
+
+  /* ---------- shared: notes / songs / wishlist / feed ---------- */
+  .sticky-note{
+    background:var(--gold-soft);border-radius:14px;padding:12px 14px;margin-bottom:10px;
+    box-shadow:0 4px 10px -6px rgba(44,42,34,0.25);
+  }
+  .sticky-note.from-me{background:var(--accent-soft);}
+  .sticky-note .txt{font-size:14.5px;font-weight:700;}
+  .sticky-note .meta{font-size:11px;color:var(--ink-dim);margin-top:6px;}
+  .reactions{display:flex;gap:6px;margin-top:8px;}
+  .reactions button{background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:13px;display:flex;gap:4px;align-items:center;}
+  .reactions button .c{font-size:11px;color:var(--ink-dim);font-weight:700;}
+
+  .song-card{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow);}
+  .song-card .note{font-size:12.5px;color:var(--ink-dim);}
+  .song-emoji{font-size:22px;}
+
+  .wishlist-row{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--border);}
+  .wishlist-row:last-child{border-bottom:none;}
+  .wishlist-row .check{width:24px;height:24px;border-radius:8px;border:2px solid var(--accent);flex:none;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+  .wishlist-row .check.done{background:var(--accent);}
+  .wishlist-row .txt{flex:1;font-size:14.5px;}
+  .wishlist-row .txt.done{text-decoration:line-through;color:var(--ink-dim);}
+
+  .feed-row{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;font-size:13.5px;}
+  .feed-row .t{font-size:11px;color:var(--ink-dim);white-space:nowrap;margin-left:auto;padding-top:1px;}
+
+  .tabs{display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:999px;margin-bottom:16px;overflow-x:auto;}
+  .tabs button{border:none;background:transparent;padding:9px 14px;border-radius:999px;font-size:12.5px;font-weight:800;color:var(--ink-dim);white-space:nowrap;}
+  .tabs button.active{background:var(--surface);color:var(--accent-strong);box-shadow:var(--shadow);}
+
+  /* ---------- onboarding ---------- */
+  .onboard-wrap{padding:40px 22px 40px;text-align:center;}
+  .onboard-wrap .logo{font-size:38px;margin-bottom:6px;}
+  .onboard-wrap h1{font-size:24px;margin:0 0 6px;}
+  .onboard-wrap p.lede{color:var(--ink-dim);font-size:13.5px;margin:0 0 24px;}
+  .onboard-card{text-align:left;}
+
+  .add-toggle-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:12px;border-radius:var(--radius-md);border:1.5px dashed var(--border);background:transparent;color:var(--accent-strong);font-weight:800;font-size:13.5px;margin-bottom:14px;}
+
+  .toast{
+    position:fixed;left:50%;bottom:96px;transform:translate(-50%,10px);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;
+    opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+
+  ::-webkit-scrollbar{display:none;}
+</style>
+</head>
+<body>
+<div id="app-shell">
+  <div id="view-container"></div>
+  <div id="bottom-nav-holder"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   TOGETHER — Health & Habit Tracker
+   Vanilla JS, no framework.
+
+   Two run modes, auto-detected at boot:
+   - 'remote': talks to /api/state and /api/action (real shared backend —
+     see README.md). Each person has their own access link/code that maps
+     to a fixed role ('A' or 'B'); there is no "switch user" UI here since
+     identity is no longer a demo toggle.
+   - 'local': no backend reachable (e.g. opened straight from disk as a
+     file, or before you've deployed anything) — falls back to the
+     original localStorage demo with a "Viewing as: User A/B" switcher, so
+     you can keep iterating on the UI without any setup.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------------
+   1. CONSTANTS
+   --------------------------------------------------------------------- */
+const STORAGE_KEY = 'together-health-demo-v1';
+const TOKEN_KEY = 'together-access-token';
+const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'];
+const EXERCISE_TYPES = ['Walking', 'Pilates', 'Gym', 'Running', 'Cycling', 'Yoga', 'Other'];
+const REACTIONS = ['❤️', '😂', '🔥', '🌱'];
+const NAV_ITEMS = [
+  { id: 'home', label: 'Home', icon: '🏡' },
+  { id: 'today', label: 'Today', icon: '📝' },
+  { id: 'progress', label: 'Progress', icon: '📈' },
+  { id: 'together', label: 'Together', icon: '🌿' },
+  { id: 'profile', label: 'Profile', icon: '👤' },
+];
+
+/* ---------------------------------------------------------------------
+   2. DATE / FORMAT HELPERS
+   --------------------------------------------------------------------- */
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function todayKey() { return dateKey(new Date()); }
+function keyMinusDays(key, n) { const d = keyToDate(key); d.setDate(d.getDate() - n); return dateKey(d); }
+function keyToDate(k) { const p = k.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+const MONTHS_TR = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+const DAYS_TR = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+function fmtShort(key) { const d = keyToDate(key); return d.getDate() + ' ' + MONTHS_TR[d.getMonth()]; }
+function fmtLong(key) { const d = keyToDate(key); return DAYS_TR[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS_TR[d.getMonth()]; }
+function daysBetween(keyA, keyB) { return Math.round((keyToDate(keyB) - keyToDate(keyA)) / 86400000); }
+function relativeDays(key) {
+  if (!key) return '—';
+  const diff = daysBetween(key, todayKey());
+  if (diff === 0) return 'Today';
+  if (diff === 1) return '1 day ago';
+  return diff + ' days ago';
+}
+function esc(s) {
+  return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+
+/* ---------------------------------------------------------------------
+   3. STATE SHAPE / LOCAL DEMO SEEDING
+   (Only used in 'local' mode — the remote backend has its own copy of
+   this same shape server-side, see lib/domain.js.)
+   --------------------------------------------------------------------- */
+function blankUser(name, startWeight, goalWeight) {
+  return { name, setup: { startWeight, goalWeight, targetDate: null, waterGoal: 8, exerciseGoal: 3, startDate: todayKey() }, days: {} };
+}
+function blankDay() { return { checkin: false, weight: null, water: 0, meals: [], exercises: [], note: '' }; }
+function blankState() {
+  return {
+    currentUser: 'A',
+    onboarded: { A: false, B: false },
+    users: { A: blankUser('Ezgi', null, null), B: blankUser('Aslı', null, null) },
+    shared: { notes: [], songs: [], wishlist: [], activity: [] }
+  };
+}
+
+function seedDemoState() {
+  const s = blankState();
+  s.onboarded.A = true;
+  s.onboarded.B = true;
+  s.users.A.setup = { startWeight: 78.4, goalWeight: 70, targetDate: keyMinusDays(todayKey(), -60), waterGoal: 8, exerciseGoal: 4, startDate: keyMinusDays(todayKey(), 8) };
+  s.users.B.setup = { startWeight: 65.2, goalWeight: 60, targetDate: keyMinusDays(todayKey(), -45), waterGoal: 8, exerciseGoal: 3, startDate: keyMinusDays(todayKey(), 8) };
+
+  const mealBank = {
+    Breakfast: ['Yulaf ezmesi + muz', 'Menemen', 'Yoğurt + granola', 'Peynirli tost'],
+    Lunch: ['Chicken salad + ayran', 'Mercimek çorbası + salata', 'Izgara tavuk + bulgur', 'Ton balıklı salata'],
+    Dinner: ['Sebzeli somon', 'Kırmızı mercimek köftesi', 'Fırında sebze + tavuk', 'Zeytinyağlı fasulye'],
+    Snack: ['Badem (bir avuç)', 'Elma + fıstık ezmesi', 'Kefir', 'Protein bar'],
+  };
+  const exerciseNotes = ['Sahilde yürüyüş', 'Evde video eşliğinde', 'Salonda üst vücut', 'Parkta koşu', 'Rahat tempo'];
+
+  ['A', 'B'].forEach((uKey, uIdx) => {
+    const user = s.users[uKey];
+    let w = user.setup.startWeight;
+    for (let i = 8; i >= 1; i--) {
+      const key = keyMinusDays(todayKey(), i);
+      const skip = (uKey === 'B' && (i === 6 || i === 2));
+      if (skip) continue;
+      const day = blankDay();
+      w = +(w - (Math.random() * 0.35 + (uIdx === 0 ? 0.05 : 0.02))).toFixed(1);
+      day.weight = w;
+      day.water = Math.floor(Math.random() * (user.setup.waterGoal + 2));
+      day.checkin = true;
+      const mtypes = ['Breakfast', 'Lunch', 'Dinner'];
+      mtypes.forEach((mt, mi) => {
+        const bank = mealBank[mt] || mealBank.Snack;
+        const desc = bank[(i + mi + uIdx) % bank.length];
+        const mid = 250 + ((desc.length * 17 + i * 13) % 420);
+        day.meals.push({ id: uid(), type: mt, time: pad(8 + mi * 4) + ':' + (mi % 2 === 0 ? '15' : '40'), desc, photo: null, estimate: { mid, low: mid - 55, high: mid + 55 } });
+      });
+      if (Math.random() > 0.3) {
+        day.exercises.push({ id: uid(), type: EXERCISE_TYPES[(i + uIdx) % EXERCISE_TYPES.length], duration: 20 + ((i * 7 + uIdx * 5) % 40), note: exerciseNotes[(i + uIdx) % exerciseNotes.length] });
+      }
+      if (i === 3) day.note = uKey === 'A' ? 'Bugün kendimi çok iyi hissettim.' : 'Biraz yorgundum ama devam.';
+      user.days[key] = day;
+    }
+    if (uKey === 'A') {
+      const today = blankDay();
+      today.checkin = true;
+      today.weight = +(w - 0.2).toFixed(1);
+      today.water = 3;
+      today.meals.push({ id: uid(), type: 'Breakfast', time: '08:20', desc: 'Yulaf ezmesi + muz', photo: null, estimate: { mid: 320, low: 270, high: 370 } });
+      user.days[todayKey()] = today;
+    }
+  });
+
+  s.shared.notes = [
+    { id: uid(), author: 'A', text: 'Bugün yürüyüş? 🌿', ts: Date.now() - 3600e3 * 20, reactions: { '❤️': 1, '😂': 0, '🔥': 0, '🌱': 1 } },
+    { id: uid(), author: 'B', text: 'Su iç 👀', ts: Date.now() - 3600e3 * 10, reactions: { '❤️': 0, '😂': 1, '🔥': 0, '🌱': 0 } },
+    { id: uid(), author: 'A', text: 'You got this ✨', ts: Date.now() - 3600e3 * 3, reactions: { '❤️': 2, '😂': 0, '🔥': 1, '🌱': 0 } },
+  ];
+  s.shared.songs = [
+    { id: uid(), author: 'B', song: 'Sunday Morning', artist: 'Maroon 5', note: 'Kahve eşliğinde dinle ☕', ts: Date.now() - 3600e3 * 30 },
+    { id: uid(), author: 'A', song: 'Islands', artist: 'The xx', note: '', ts: Date.now() - 3600e3 * 6 },
+  ];
+  s.shared.wishlist = [
+    { id: uid(), text: 'Weekend trip', done: false, addedBy: 'A' },
+    { id: uid(), text: 'New shoes', done: false, addedBy: 'B' },
+    { id: uid(), text: 'Fancy dinner', done: true, addedBy: 'A' },
+    { id: uid(), text: 'Something ridiculous', done: false, addedBy: 'B' },
+  ];
+  s.shared.activity = [
+    { id: uid(), icon: '🌱', text: 'User A logged today', ts: Date.now() - 3600e3 * 1 },
+    { id: uid(), icon: '💧', text: 'User B completed water goal', ts: Date.now() - 3600e3 * 5 },
+    { id: uid(), icon: '🏃', text: 'User A added a 30 min walk', ts: Date.now() - 3600e3 * 9 },
+    { id: uid(), icon: '🔥', text: 'Together streak reached 7 days', ts: Date.now() - 3600e3 * 30 },
+    { id: uid(), icon: '🎵', text: 'User B recommended a song', ts: Date.now() - 3600e3 * 30.5 },
+  ];
+  return s;
+}
+
+/* ---------------------------------------------------------------------
+   4. DOMAIN LOGIC (pure functions over state — identical to the server's
+   lib/domain.js on purpose, so local demo mode and remote mode behave
+   the same way).
+   --------------------------------------------------------------------- */
+function otherOf(u) { return u === 'A' ? 'B' : 'A'; }
+function getUser(s, u) { return s.users[u]; }
+function ensureDay(user, key) { if (!user.days[key]) user.days[key] = blankDay(); return user.days[key]; }
+function sortedDayKeys(user) { return Object.keys(user.days).sort(); }
+
+function computeStreak(user) {
+  let streak = 0;
+  let key = todayKey();
+  if (!user.days[key] || !user.days[key].checkin) key = keyMinusDays(key, 1);
+  else { streak++; key = keyMinusDays(key, 1); }
+  let guard = 0;
+  while (user.days[key] && user.days[key].checkin && guard < 3650) { streak++; key = keyMinusDays(key, 1); guard++; }
+  return streak;
+}
+function computeTogetherStreak(s) {
+  let streak = 0;
+  let key = todayKey();
+  const bothToday = s.users.A.days[key] && s.users.A.days[key].checkin && s.users.B.days[key] && s.users.B.days[key].checkin;
+  key = keyMinusDays(key, 1);
+  if (bothToday) streak++;
+  let guard = 0;
+  while (guard < 3650) {
+    const a = s.users.A.days[key], b = s.users.B.days[key];
+    if (a && a.checkin && b && b.checkin) { streak++; key = keyMinusDays(key, 1); guard++; } else break;
+  }
+  return streak;
+}
+function latestWeightEntry(user) {
+  const keys = sortedDayKeys(user).filter(k => typeof user.days[k].weight === 'number');
+  if (!keys.length) return null;
+  const k = keys[keys.length - 1];
+  return { key: k, weight: user.days[k].weight };
+}
+function currentWeight(user) { const e = latestWeightEntry(user); return e ? e.weight : user.setup.startWeight; }
+function totalChange(user) {
+  const cw = currentWeight(user);
+  if (cw == null || user.setup.startWeight == null) return null;
+  return +(cw - user.setup.startWeight).toFixed(1);
+}
+function goalProgressPct(user) {
+  const total = user.setup.startWeight - user.setup.goalWeight;
+  if (!total || total <= 0) return 0;
+  const done = user.setup.startWeight - currentWeight(user);
+  return Math.max(0, Math.min(100, (done / total) * 100));
+}
+function changeFromStartSeries(user, days) {
+  const out = [];
+  let lastKnown = user.setup.startWeight;
+  let lastKnownKey = user.setup.startDate;
+  for (let i = days - 1; i >= 0; i--) {
+    const key = keyMinusDays(todayKey(), i);
+    const day = user.days[key];
+    let carried = false;
+    if (day && typeof day.weight === 'number') { lastKnown = day.weight; lastKnownKey = key; }
+    else carried = key !== user.setup.startDate;
+    out.push({ key, value: user.setup.startWeight == null || lastKnown == null ? 0 : +(lastKnown - user.setup.startWeight).toFixed(2), isCarried: carried, lastKnownKey });
+  }
+  return out;
+}
+function weightTrendSeries(user) {
+  return sortedDayKeys(user).filter(k => typeof user.days[k].weight === 'number').map(k => ({ key: k, weight: user.days[k].weight }));
+}
+function todayMealCount(user) { const d = user.days[todayKey()]; return d ? d.meals.length : 0; }
+function todayExerciseDone(user) { const d = user.days[todayKey()]; return !!(d && d.exercises.length); }
+function todayWater(user) { const d = user.days[todayKey()]; return d ? d.water : 0; }
+function todayCheckin(user) { const d = user.days[todayKey()]; return !!(d && d.checkin); }
+function logActivity(s, icon, text) { s.shared.activity.unshift({ id: uid(), icon, text, ts: Date.now() }); s.shared.activity = s.shared.activity.slice(0, 40); }
+function markCheckin(s, uKey) {
+  const user = s.users[uKey];
+  const day = ensureDay(user, todayKey());
+  const wasCheckedIn = day.checkin;
+  day.checkin = true;
+  if (!wasCheckedIn) {
+    logActivity(s, '🌱', `${user.name} logged today`);
+    const other = s.users[otherOf(uKey)];
+    if (other.days[todayKey()] && other.days[todayKey()].checkin) {
+      const t = computeTogetherStreak(s);
+      if (t > 0) logActivity(s, '🔥', `Together streak reached ${t} day${t === 1 ? '' : 's'}`);
+    }
+  }
+}
+function estimateCalories(desc) {
+  const str = (desc || '').trim();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  const mid = 220 + (hash % 480);
+  const spread = 45 + (hash % 45);
+  return { mid: Math.round(mid / 10) * 10, low: Math.round((mid - spread) / 10) * 10, high: Math.round((mid + spread) / 10) * 10 };
+}
+
+/** Partner-facing computed fields — same shape whether they come from the
+ *  server (remote mode) or are computed locally (local demo mode). Never
+ *  reads raw weight numbers for anyone but the current user. */
+function getPartnerMeta(s, other) {
+  if (Store.mode() === 'remote') {
+    return { totalChange: other._totalChange, changeSeries: other._changeSeries || [], lastUpdateKey: other._lastUpdateKey };
+  }
+  return { totalChange: totalChange(other), changeSeries: changeFromStartSeries(other, 10), lastUpdateKey: sortedDayKeys(other).pop() || null };
+}
+function getSeriesForRole(s, role) {
+  if (role === s.currentUser) return changeFromStartSeries(getUser(s, role), 10);
+  return getPartnerMeta(s, getUser(s, role)).changeSeries;
+}
+
+/* ---------------------------------------------------------------------
+   5. STORE — local demo (localStorage) + remote (fetch) in one module.
+   Everything else in this file calls Store.get()/Store.mode()/runChange().
+   --------------------------------------------------------------------- */
+const Store = (function () {
+  let mode = null; // 'local' | 'remote' | 'gate'
+  let state = null;
+  let token = null;
+
+  function loadLocal() { try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+  function saveLocal() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { } }
+
+  function readTokenFromUrlOrStorage() {
+    try {
+      const url = new URL(window.location.href);
+      const fromUrl = url.searchParams.get('u');
+      if (fromUrl) {
+        localStorage.setItem(TOKEN_KEY, fromUrl);
+        url.searchParams.delete('u');
+        const clean = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+        window.history.replaceState({}, '', clean);
+      }
+    } catch (e) { /* ignore */ }
+    try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+  }
+
+  function applyRemoteResponse(data) {
+    if (!state) state = { currentUser: null, onboarded: { A: false, B: false }, users: { A: null, B: null }, shared: null };
+    state.currentUser = data.role;
+    state.onboarded[data.role] = data.onboarded;
+    state.users[data.role] = data.me;
+    const other = otherOf(data.role);
+    state.onboarded[other] = data.partner.onboarded;
+    const key = todayKey();
+    const days = {};
+    days[key] = {
+      checkin: data.partner.today.checkin, weight: null, water: data.partner.today.water,
+      meals: new Array(data.partner.today.mealsCount).fill(null).map(() => ({})),
+      exercises: data.partner.today.exerciseDone ? [{}] : [], note: ''
+    };
+    state.users[other] = {
+      name: data.partner.name,
+      setup: { startWeight: null, goalWeight: null, waterGoal: data.partner.waterGoal, exerciseGoal: data.partner.exerciseGoal, targetDate: null, startDate: null },
+      days,
+      _totalChange: data.partner.totalChange,
+      _changeSeries: data.partner.changeSeries,
+      _lastUpdateKey: data.partner.lastUpdateKey,
+    };
+    state.shared = data.shared;
+  }
+
+  async function tryRemoteInit() {
+    token = readTokenFromUrlOrStorage();
+    if (!token) return false;
+    try {
+      const res = await fetch('/api/state', { headers: { Authorization: 'Bearer ' + token } });
+      if (res.status === 401) { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { } token = null; App.gateError = 'Kod geçersiz görünüyor. Tekrar dene.'; return false; }
+      if (!res.ok) return false;
+      applyRemoteResponse(await res.json());
+      mode = 'remote';
+      return true;
+    } catch (e) {
+      return false; // no network / no backend deployed yet
+    }
+  }
+
+  async function dispatch(type, payload) {
+    const res = await fetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ type, payload: payload || {} })
+    });
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const j = await res.json(); msg = j.message || j.error || msg; } catch (e) { }
+      throw new Error(msg);
+    }
+    applyRemoteResponse(await res.json());
+    return state;
+  }
+
+  return {
+    async init() {
+      // Opened straight from disk (double-clicked the file) -> no server can
+      // exist, so skip straight to the local demo mode.
+      if (location.protocol === 'file:') {
+        mode = 'local';
+        state = loadLocal() || seedDemoState();
+        saveLocal();
+        return state;
+      }
+      // Served over http(s) — either a real deployment or `npm run dev` —
+      // always go through the real access-token flow.
+      const ok = await tryRemoteInit();
+      if (ok) return state;
+      mode = 'gate';
+      return null;
+    },
+    async tryRemoteInitPublic() { return tryRemoteInit(); },
+    mode() { return mode; },
+    get() { return state; },
+    update(mutator) { mutator(state); if (mode === 'local') saveLocal(); },
+    async dispatch(type, payload) { return dispatch(type, payload); },
+    reset() { state = seedDemoState(); saveLocal(); return state; },
+    hardReset() { state = blankState(); saveLocal(); return state; },
+    setGateError(msg) { App.gateError = msg; },
+    logout() { try { localStorage.removeItem(TOKEN_KEY); } catch (e) { } location.reload(); },
+  };
+})();
+
+/** Runs a change either via the server (remote) or directly on local state
+ *  (local demo). Every click handler in this file goes through this so the
+ *  two modes share one code path. */
+async function runChange(localMutator, type, payload) {
+  if (Store.mode() === 'remote') {
+    await Store.dispatch(type, payload);
+  } else {
+    Store.update(localMutator);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   6. TOAST
+   --------------------------------------------------------------------- */
+let toastTimer = null;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+/* ---------------------------------------------------------------------
+   7. APP / ROUTER
+   --------------------------------------------------------------------- */
+const App = { route: 'home', charts: {}, togetherTab: 'status', gateError: '' };
+
+function render() {
+  const container = document.getElementById('view-container');
+  const navHolder = document.getElementById('bottom-nav-holder');
+
+  if (Store.mode() === 'gate') {
+    container.innerHTML = renderGate();
+    navHolder.innerHTML = '';
+    wireGate();
+    return;
+  }
+
+  const s = Store.get();
+  if (!s.onboarded[s.currentUser]) {
+    container.innerHTML = renderOnboarding(s);
+    navHolder.innerHTML = '';
+    wireOnboarding();
+    return;
+  }
+
+  navHolder.innerHTML = renderBottomNav();
+  wireBottomNav();
+
+  let html = renderTopBar(s);
+  switch (App.route) {
+    case 'today': html += renderToday(s); break;
+    case 'progress': html += renderProgress(s); break;
+    case 'together': html += renderTogether(s); break;
+    case 'profile': html += renderProfile(s); break;
+    default: html += renderHome(s);
+  }
+  container.innerHTML = html;
+  container.scrollTop = 0;
+
+  wireTopBar();
+  if (App.route === 'today') wireToday();
+  if (App.route === 'progress') wireProgress();
+  if (App.route === 'together') wireTogether();
+  if (App.route === 'profile') wireProfile();
+  if (App.route === 'home') wireHome();
+}
+
+/* ---------------------------------------------------------------------
+   8. ACCESS GATE (remote mode only — shown when no valid token yet)
+   --------------------------------------------------------------------- */
+function renderGate() {
+  return `
+    <div class="onboard-wrap">
+      <div class="logo">🌿</div>
+      <h1>Together</h1>
+      <p class="lede">Bu, ikiniz için özel bir alan. Sana gönderilen erişim linkine tıkla ya da kodunu aşağıya yapıştır.</p>
+      <div class="card onboard-card">
+        <div class="field"><label for="gate-code">Erişim kodun</label><input id="gate-code" type="text" placeholder="kod..." autocomplete="off"></div>
+        <button class="btn btn-primary" id="gate-save">Giriş yap</button>
+        <p class="sub" style="text-align:center;margin-top:10px;color:var(--bad);" id="gate-err">${esc(App.gateError || '')}</p>
+      </div>
+    </div>`;
+}
+function wireGate() {
+  document.getElementById('gate-save').addEventListener('click', async () => {
+    const code = document.getElementById('gate-code').value.trim();
+    if (!code) return;
+    try { localStorage.setItem(TOKEN_KEY, code); } catch (e) { }
+    App.gateError = 'Kontrol ediliyor…';
+    render();
+    const ok = await Store.tryRemoteInitPublic();
+    if (ok) { App.gateError = ''; render(); }
+    else { App.gateError = 'Kod geçersiz görünüyor. Tekrar dene.'; render(); }
+  });
+}
+
+/* ---------------------------------------------------------------------
+   9. TOP BAR
+   --------------------------------------------------------------------- */
+function renderTopBar(s) {
+  const titleMap = { home: 'Home', today: 'Today', progress: 'Progress', together: 'Together', profile: 'Profile' };
+  const isRemote = Store.mode() === 'remote';
+  const me = getUser(s, s.currentUser);
+  return `
+    <div class="top-bar">
+      <div>
+        <h1>${titleMap[App.route] || 'Home'}</h1>
+        ${isRemote
+          ? `<span class="sub">Merhaba, <strong>${esc(me.name)}</strong></span>`
+          : `<span class="sub">Viewing as: ${s.currentUser === 'A' ? '<strong>User A</strong> / User B' : 'User A / <strong>User B</strong>'}</span>`}
+      </div>
+      ${isRemote ? '' : `
+      <div class="user-toggle" id="user-toggle">
+        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}">User A</button>
+        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}">User B</button>
+      </div>`}
+    </div>`;
+}
+function wireTopBar() {
+  const toggle = document.getElementById('user-toggle');
+  if (!toggle) return;
+  toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-user]');
+    if (!btn) return;
+    Store.update(s => { s.currentUser = btn.dataset.user; });
+    render();
+  });
+}
+
+/* ---------------------------------------------------------------------
+   10. BOTTOM NAV
+   --------------------------------------------------------------------- */
+function renderBottomNav() {
+  return `<nav class="bottom-nav">${NAV_ITEMS.map(it => `
+    <button class="nav-item ${App.route === it.id ? 'active' : ''}" data-route="${it.id}">
+      <span class="ico">${it.icon}</span><span class="lbl">${it.label}</span>
+    </button>`).join('')}</nav>`;
+}
+function wireBottomNav() {
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => { App.route = btn.dataset.route; render(); });
+  });
+}
+
+/* ---------------------------------------------------------------------
+   11. ONBOARDING
+   --------------------------------------------------------------------- */
+function renderOnboarding(s) {
+  const uKey = s.currentUser;
+  const isRemote = Store.mode() === 'remote';
+  const me = getUser(s, uKey);
+  return `
+    <div class="onboard-wrap">
+      <div class="logo">🌿</div>
+      <h1>Together</h1>
+      <p class="lede">${isRemote ? esc(me.name) : (uKey === 'A' ? 'User A' : 'User B')} için hedeflerini belirleyelim.</p>
+      <div class="card onboard-card">
+        <div class="field"><label for="ob-start">Şu anki kilo (kg)</label><input id="ob-start" type="number" step="0.1" min="1" placeholder="örn. 78.4"></div>
+        <div class="field"><label for="ob-goal">Hedef kilo (kg)</label><input id="ob-goal" type="number" step="0.1" min="1" placeholder="örn. 70"></div>
+        <div class="field"><label for="ob-date">Hedef tarih (opsiyonel)</label><input id="ob-date" type="date"></div>
+        <div class="field"><label for="ob-water">Günlük su hedefi (bardak)</label><input id="ob-water" type="number" min="1" max="20" value="8"></div>
+        <div class="field"><label for="ob-ex">Haftalık egzersiz hedefi (gün)</label><input id="ob-ex" type="number" min="1" max="7" value="3"></div>
+        <button class="btn btn-primary" id="ob-save">Panoyu Oluştur</button>
+        <p class="sub" style="text-align:center;margin-top:10px;color:var(--bad);" id="ob-err"></p>
+      </div>
+      ${isRemote ? '' : `<button class="btn-ghost" id="ob-switch">Diğer kullanıcıyı görüntüle (${uKey === 'A' ? 'User B' : 'User A'})</button>`}
+    </div>`;
+}
+function wireOnboarding() {
+  const switchBtn = document.getElementById('ob-switch');
+  if (switchBtn) switchBtn.addEventListener('click', () => {
+    Store.update(s => { s.currentUser = otherOf(s.currentUser); });
+    render();
+  });
+  document.getElementById('ob-save').addEventListener('click', async () => {
+    const start = parseFloat(document.getElementById('ob-start').value);
+    const goal = parseFloat(document.getElementById('ob-goal').value);
+    const date = document.getElementById('ob-date').value || null;
+    const water = parseInt(document.getElementById('ob-water').value, 10) || 8;
+    const ex = parseInt(document.getElementById('ob-ex').value, 10) || 3;
+    const err = document.getElementById('ob-err');
+    if (!start || !goal) { err.textContent = 'Lütfen şu anki kilonu ve hedef kilonu gir.'; return; }
+    const payload = { startWeight: start, goalWeight: goal, targetDate: date, waterGoal: water, exerciseGoal: ex };
+    try {
+      await runChange(st => {
+        const uKey = st.currentUser;
+        st.users[uKey].setup = { startWeight: start, goalWeight: goal, targetDate: date, waterGoal: water, exerciseGoal: ex, startDate: todayKey() };
+        st.onboarded[uKey] = true;
+      }, 'ONBOARD', payload);
+    } catch (e) { err.textContent = 'Kaydedilemedi: ' + e.message; return; }
+    App.route = 'home';
+    render();
+  });
+}
+
+/* ---------------------------------------------------------------------
+   12. HOME
+   --------------------------------------------------------------------- */
+function renderHome(s) {
+  const user = getUser(s, s.currentUser);
+  const other = getUser(s, otherOf(s.currentUser));
+  const streak = computeStreak(user);
+  const together = computeTogetherStreak(s);
+  const checkedIn = todayCheckin(user);
+  const otherCheckedIn = todayCheckin(other);
+  const water = todayWater(user);
+  const meals = todayMealCount(user);
+  const exDone = todayExerciseDone(user);
+
+  return `
+    <div class="row" style="margin-bottom:14px;">
+      <div>
+        <div style="font-weight:800;font-size:16px;">${fmtLong(todayKey())}</div>
+        <span class="pill ${checkedIn ? 'pill-good' : 'pill-neutral'}">${checkedIn ? '✓ Bugün check-in yapıldı' : 'Bugün henüz check-in yok'}</span>
+      </div>
+    </div>
+
+    <div class="streak-row">
+      <div class="streak-card"><div class="n num">${streak}</div><div class="lbl">Your Streak 🔥</div></div>
+      <div class="streak-card together"><div class="n num">${together}</div><div class="lbl">Together Streak 🌿</div></div>
+    </div>
+
+    <div class="partner-strip">
+      <span class="dot ${otherCheckedIn ? 'dot-yes' : 'dot-no'}"></span>
+      <span style="font-size:13.5px;">${esc(other.name)} ${otherCheckedIn ? 'bugün check-in yaptı' : "bugün henüz check-in yapmadı"}</span>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:16px;">
+      <div class="mini-stat"><div class="lbl">Su</div><div class="val num">${water}/${user.setup.waterGoal}</div></div>
+      <div class="mini-stat"><div class="lbl">Öğün</div><div class="val num">${meals}</div></div>
+      <div class="mini-stat"><div class="lbl">Egzersiz</div><div class="val">${exDone ? '✓' : '—'}</div></div>
+    </div>
+
+    <button class="btn btn-primary" id="home-cta" style="margin-bottom:8px;">Bugünü Kaydet</button>
+  `;
+}
+function wireHome() {
+  document.getElementById('home-cta').addEventListener('click', () => { App.route = 'today'; render(); });
+}
+
+/* ---------------------------------------------------------------------
+   13. TODAY
+   --------------------------------------------------------------------- */
+function renderToday(s) {
+  const user = getUser(s, s.currentUser);
+  const key = todayKey();
+  const day = user.days[key] || blankDay();
+
+  return `
+    <p class="sub" style="margin:-6px 0 16px;">${fmtLong(key)} için durumunu güncelle.</p>
+
+    <div class="card">
+      <div class="section-title">Kilo</div>
+      <div class="weight-input-row">
+        <div class="field">
+          <label for="today-weight">Bugünkü kilon (kg)</label>
+          <input id="today-weight" type="number" step="0.1" min="1" value="${typeof day.weight === 'number' ? day.weight : ''}" placeholder="${currentWeight(user) != null ? currentWeight(user).toFixed(1) : ''}">
+        </div>
+        <button class="btn btn-primary btn-sm" id="save-weight">Kaydet</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Meals</div>
+        <span class="pill pill-neutral">${day.meals.length} bugün</span>
+      </div>
+      <div id="meal-list">${renderMealList(day)}</div>
+      <button class="add-toggle-btn" id="toggle-meal-form">+ Öğün ekle</button>
+      <div id="meal-form-holder"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Water</div>
+      <div class="water-row">
+        <button class="stepbtn" id="water-minus">–</button>
+        <div class="glasses" id="glasses">${renderGlasses(day.water, user.setup.waterGoal)}</div>
+        <button class="stepbtn" id="water-plus">+</button>
+      </div>
+      <p class="sub" style="text-align:center;margin:8px 0 0;"><span class="num" id="water-count">${day.water}</span> / ${user.setup.waterGoal} bardak</p>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Exercise</div>
+        <span class="pill pill-neutral">${day.exercises.length} bugün</span>
+      </div>
+      <div id="exercise-list">${renderExerciseList(day)}</div>
+      <button class="add-toggle-btn" id="toggle-exercise-form">+ Egzersiz ekle</button>
+      <div id="exercise-form-holder"></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Daily Note</div>
+      <div class="field" style="margin-bottom:8px;">
+        <textarea id="daily-note" placeholder="Bugün nasıl geçti?">${esc(day.note)}</textarea>
+      </div>
+      <button class="btn btn-soft btn-sm" id="save-note">Notu Kaydet</button>
+    </div>
+  `;
+}
+function renderGlasses(count, goal) {
+  const n = Math.max(count, goal);
+  let out = '';
+  for (let i = 0; i < n; i++) out += `<div class="glass ${i < count ? 'filled' : ''}"></div>`;
+  return out;
+}
+function renderMealList(day) {
+  if (!day.meals.length) return `<div class="empty-state">No meals yet 👀</div>`;
+  return day.meals.map(m => `
+    <div class="list-item" data-meal-id="${m.id}">
+      <div class="top-row">
+        <div>
+          <strong>${esc(m.type)}</strong> <span class="meta">${esc(m.time)}</span>
+          <div class="meta">${esc(m.desc)}</div>
+        </div>
+        <button class="btn-danger-ghost" data-del-meal="${m.id}">Sil</button>
+      </div>
+      ${m.photo ? `<img class="photo" src="${m.photo}" alt="">` : ''}
+      ${m.estimate ? `<div class="estimate-box"><span class="mid num">≈ ${m.estimate.mid} kcal</span><div class="sub">Possible range: ${m.estimate.low}–${m.estimate.high} kcal</div></div>` : ''}
+    </div>`).join('') +
+    (function () {
+      const total = day.meals.reduce((sum, m) => sum + (m.estimate ? m.estimate.mid : 0), 0);
+      return total ? `<p class="sub" style="text-align:right;">Günün tahmini toplamı: <strong class="num">≈ ${total} kcal</strong></p>` : '';
+    })();
+}
+function renderExerciseList(day) {
+  if (!day.exercises.length) return `<div class="empty-state">Henüz egzersiz yok 👀</div>`;
+  return day.exercises.map(ex => `
+    <div class="list-item" data-ex-id="${ex.id}">
+      <div class="top-row">
+        <div><strong>${esc(ex.type)}</strong> <span class="meta">${ex.duration} dk</span>
+          ${ex.note ? `<div class="meta">${esc(ex.note)}</div>` : ''}
+        </div>
+        <button class="btn-danger-ghost" data-del-ex="${ex.id}">Sil</button>
+      </div>
+    </div>`).join('');
+}
+function renderMealForm() {
+  return `
+    <div class="meal-form" id="meal-form">
+      <div class="field">
+        <label>Meal type</label>
+        <select id="mf-type">${MEAL_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>Saat</label><input type="time" id="mf-time" value="${pad(new Date().getHours())}:${pad(new Date().getMinutes())}"></div>
+        <div class="field"><label>Fotoğraf</label><input type="file" id="mf-photo" accept="image/*"></div>
+      </div>
+      <div class="field"><label>Açıklama</label><input type="text" id="mf-desc" placeholder="örn. Chicken salad + ayran"></div>
+      <div id="mf-photo-preview"></div>
+      <button class="btn btn-outline btn-sm" id="mf-estimate" style="margin-bottom:10px;">Estimate with AI</button>
+      <div id="mf-estimate-box"></div>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="btn btn-primary" id="mf-save">Öğünü Kaydet</button>
+        <button class="btn btn-outline" id="mf-cancel">Vazgeç</button>
+      </div>
+    </div>`;
+}
+function renderExerciseForm() {
+  return `
+    <div class="exercise-form" id="exercise-form">
+      <div class="field">
+        <label>Exercise Type</label>
+        <select id="ef-type">${EXERCISE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Duration (dk)</label><input type="number" id="ef-duration" min="1" value="30"></div>
+      <div class="field"><label>Optional Note</label><input type="text" id="ef-note" placeholder="örn. Sahilde yürüyüş"></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-primary" id="ef-save">Egzersizi Kaydet</button>
+        <button class="btn btn-outline" id="ef-cancel">Vazgeç</button>
+      </div>
+    </div>`;
+}
+
+function wireToday() {
+  const s = Store.get();
+  const key = todayKey();
+
+  document.getElementById('save-weight').addEventListener('click', async () => {
+    const val = parseFloat(document.getElementById('today-weight').value);
+    if (!val) { toast('Geçerli bir kilo gir.'); return; }
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); ensureDay(u, key).weight = val; markCheckin(st, st.currentUser); }, 'SAVE_WEIGHT', { weight: val });
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    toast('Kilo kaydedildi.');
+    render();
+  });
+
+  document.getElementById('toggle-meal-form').addEventListener('click', () => {
+    const holder = document.getElementById('meal-form-holder');
+    holder.innerHTML = holder.innerHTML ? '' : renderMealForm();
+    if (holder.innerHTML) wireMealForm();
+  });
+  document.getElementById('toggle-exercise-form').addEventListener('click', () => {
+    const holder = document.getElementById('exercise-form-holder');
+    holder.innerHTML = holder.innerHTML ? '' : renderExerciseForm();
+    if (holder.innerHTML) wireExerciseForm();
+  });
+
+  document.getElementById('meal-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-del-meal]');
+    if (!btn) return;
+    const id = btn.dataset.delMeal;
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.meals = d.meals.filter(m => m.id !== id); }, 'DELETE_MEAL', { id });
+    } catch (e) { toast('Silinemedi: ' + e.message); return; }
+    render();
+  });
+
+  document.getElementById('exercise-list').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-del-ex]');
+    if (!btn) return;
+    const id = btn.dataset.delEx;
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.exercises = d.exercises.filter(ex => ex.id !== id); }, 'DELETE_EXERCISE', { id });
+    } catch (e) { toast('Silinemedi: ' + e.message); return; }
+    render();
+  });
+
+  document.getElementById('water-plus').addEventListener('click', async () => {
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.water = Math.min(20, d.water + 1); markCheckin(st, st.currentUser); }, 'SET_WATER_DELTA', { delta: 1 });
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    render();
+  });
+  document.getElementById('water-minus').addEventListener('click', async () => {
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.water = Math.max(0, d.water - 1); }, 'SET_WATER_DELTA', { delta: -1 });
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    render();
+  });
+
+  document.getElementById('save-note').addEventListener('click', async () => {
+    const txt = document.getElementById('daily-note').value;
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); ensureDay(u, key).note = txt; }, 'SAVE_DAILY_NOTE', { text: txt });
+      toast('Not kaydedildi.');
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); }
+  });
+}
+
+function wireMealForm() {
+  let photoData = null;
+  document.getElementById('mf-photo').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      photoData = reader.result;
+      document.getElementById('mf-photo-preview').innerHTML = `<img class="photo" src="${photoData}" alt="">`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  let estimate = null;
+  document.getElementById('mf-estimate').addEventListener('click', () => {
+    const desc = document.getElementById('mf-desc').value || document.getElementById('mf-type').value;
+    estimate = estimateCalories(desc);
+    document.getElementById('mf-estimate-box').innerHTML =
+      `<div class="estimate-box"><span class="mid num">≈ ${estimate.mid} kcal</span><div class="sub">Possible range: ${estimate.low}–${estimate.high} kcal</div><div class="sub" style="margin-top:4px;">Bu bir tahmindir, kesin değer değildir.</div></div>`;
+  });
+
+  document.getElementById('mf-cancel').addEventListener('click', () => { document.getElementById('meal-form-holder').innerHTML = ''; });
+
+  document.getElementById('mf-save').addEventListener('click', async () => {
+    const type = document.getElementById('mf-type').value;
+    const time = document.getElementById('mf-time').value;
+    const desc = document.getElementById('mf-desc').value.trim();
+    if (!desc) { toast('Kısa bir açıklama gir.'); return; }
+    const payload = { type, time, desc, photo: photoData, estimate };
+    try {
+      await runChange(st => {
+        const u = getUser(st, st.currentUser);
+        const d = ensureDay(u, todayKey());
+        d.meals.push({ id: uid(), type, time, desc, photo: photoData, estimate });
+        markCheckin(st, st.currentUser);
+      }, 'ADD_MEAL', payload);
+    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+    toast('Öğün eklendi.');
+    render();
+  });
+}
+
+function wireExerciseForm() {
+  document.getElementById('ef-cancel').addEventListener('click', () => { document.getElementById('exercise-form-holder').innerHTML = ''; });
+  document.getElementById('ef-save').addEventListener('click', async () => {
+    const type = document.getElementById('ef-type').value;
+    const duration = parseInt(document.getElementById('ef-duration').value, 10) || 0;
+    const note = document.getElementById('ef-note').value.trim();
+    try {
+      await runChange(st => {
+        const u = getUser(st, st.currentUser);
+        const d = ensureDay(u, todayKey());
+        d.exercises.push({ id: uid(), type, duration, note });
+        markCheckin(st, st.currentUser);
+        logActivity(st, '🏃', `${u.name} added a ${duration} min ${type.toLowerCase()}`);
+      }, 'ADD_EXERCISE', { type, duration, note });
+    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+    toast('Egzersiz eklendi.');
+    render();
+  });
+}
+
+/* ---------------------------------------------------------------------
+   14. PROGRESS (own data only)
+   --------------------------------------------------------------------- */
+function renderProgress(s) {
+  const user = getUser(s, s.currentUser);
+  const change = totalChange(user);
+  const pct = goalProgressPct(user);
+  const streak = computeStreak(user);
+  const history = sortedDayKeys(user).slice(-10).reverse();
+
+  return `
+    <div class="grid-2" style="margin-bottom:14px;">
+      <div class="mini-stat"><div class="lbl">Total Change</div><div class="val num">${change == null ? '—' : (change > 0 ? '+' : '') + change + ' kg'}</div></div>
+      <div class="mini-stat"><div class="lbl">Current Streak</div><div class="val num">${streak} gün</div></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Goal Progress</div>
+      <div style="height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden;margin-bottom:8px;">
+        <div style="height:100%;width:${pct.toFixed(0)}%;background:linear-gradient(90deg,var(--accent),var(--accent-strong));border-radius:6px;"></div>
+      </div>
+      <div class="row"><span class="sub">${user.setup.startWeight} kg</span><span class="sub">%${pct.toFixed(0)}</span><span class="sub">${user.setup.goalWeight} kg</span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Weight Trend</div>
+      <div class="chart-wrap"><canvas id="progress-chart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Check-in History</div>
+      ${history.length ? history.map(k => {
+        const d = user.days[k];
+        return `<div class="row" style="padding:7px 0;border-bottom:1px solid var(--border);">
+          <span class="sub">${fmtShort(k)}</span>
+          <span class="pill ${d.checkin ? 'pill-good' : 'pill-bad'}">${d.checkin ? '✓ Check-in' : 'Kayıt yok'}</span>
+        </div>`;
+      }).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+    </div>
+  `;
+}
+function wireProgress() {
+  const s = Store.get();
+  const user = getUser(s, s.currentUser);
+  const series = weightTrendSeries(user);
+  const ctx = document.getElementById('progress-chart');
+  if (App.charts.progress) { App.charts.progress.destroy(); App.charts.progress = null; }
+  if (!series.length) { ctx.parentElement.innerHTML = `<div class="empty-state">Kilonu kaydettikçe burada trend grafiği oluşacak.</div>`; return; }
+  if (typeof Chart === 'undefined') { ctx.parentElement.innerHTML = `<div class="empty-state">Grafik kütüphanesi yüklenemedi (internet bağlantısı gerekiyor).</div>`; return; }
+  App.charts.progress = new Chart(ctx, {
+    type: 'line',
+    data: { labels: series.map(p => fmtShort(p.key)), datasets: [{ data: series.map(p => p.weight), borderColor: '#4f7358', backgroundColor: 'rgba(127,168,135,0.18)', fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: '#4f7358' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { family: 'Space Mono' } } }, x: { ticks: { font: { size: 10 } } } } }
+  });
+}
+
+/* ---------------------------------------------------------------------
+   15. TOGETHER
+   --------------------------------------------------------------------- */
+const TOGETHER_TABS = [
+  { id: 'status', label: 'Bugün' },
+  { id: 'chart', label: 'Kilo' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'songs', label: 'Songs' },
+  { id: 'wishlist', label: 'Wishlist' },
+  { id: 'feed', label: 'Feed' },
+];
+
+function renderTogether(s) {
+  const other = getUser(s, otherOf(s.currentUser));
+  let body = '';
+  if (App.togetherTab === 'status') body = renderTogetherStatus(s, other);
+  else if (App.togetherTab === 'chart') body = renderTogetherChart(s);
+  else if (App.togetherTab === 'notes') body = renderSharedNotes(s);
+  else if (App.togetherTab === 'songs') body = renderSongs(s);
+  else if (App.togetherTab === 'wishlist') body = renderWishlist(s);
+  else if (App.togetherTab === 'feed') body = renderActivityFeed(s);
+
+  return `
+    <div class="tabs" id="together-tabs">
+      ${TOGETHER_TABS.map(t => `<button data-tab="${t.id}" class="${App.togetherTab === t.id ? 'active' : ''}">${t.label}</button>`).join('')}
+    </div>
+    ${body}
+  `;
+}
+
+function renderTogetherStatus(s, other) {
+  const checkedIn = todayCheckin(other);
+  const water = todayWater(other);
+  const meals = todayMealCount(other);
+  const exDone = todayExerciseDone(other);
+  const meta = getPartnerMeta(s, other);
+
+  return `
+    <div class="card">
+      <div class="section-title">${esc(other.name)} — Today</div>
+      ${!checkedIn ? `<div class="empty-state">Your partner hasn't checked in today.</div>` : ''}
+      <div class="stack" style="margin-top:${checkedIn ? '0' : '12px'};">
+        <div class="row"><span class="sub">Check-in</span><span class="pill ${checkedIn ? 'pill-good' : 'pill-bad'}">${checkedIn ? '✓ Yapıldı' : 'Yapılmadı'}</span></div>
+        <div class="row"><span class="sub">Meal logged?</span><span class="pill ${meals ? 'pill-good' : 'pill-neutral'}">${meals ? meals + ' öğün' : 'Henüz yok'}</span></div>
+        <div class="row"><span class="sub">Water</span><span class="pill ${water >= other.setup.waterGoal ? 'pill-good' : 'pill-neutral'}">${water}/${other.setup.waterGoal}</span></div>
+        <div class="row"><span class="sub">Exercise</span><span class="pill ${exDone ? 'pill-good' : 'pill-neutral'}">${exDone ? '✓ Yapıldı' : 'Henüz yok'}</span></div>
+        <div class="row"><span class="sub">Last update</span><span class="sub num">${relativeDays(meta.lastUpdateKey)}</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Weight</div>
+      <p class="sub" style="margin-top:-4px;">Gizlilik nedeniyle yalnızca değişim gösterilir, gerçek kilo görünmez.</p>
+      <div class="mini-stat" style="margin-top:10px;"><div class="lbl">Total Change</div><div class="val num">${meta.totalChange == null ? '—' : (meta.totalChange > 0 ? '+' : '') + meta.totalChange + ' kg'}</div></div>
+    </div>
+  `;
+}
+
+function renderTogetherChart() {
+  return `
+    <div class="card">
+      <div class="section-title">Change from starting weight</div>
+      <div class="chart-wrap"><canvas id="together-chart"></canvas></div>
+      <div class="legend-row">
+        <span><span class="legend-dot" style="background:#4f7358;"></span>Ezgi</span>
+        <span><span class="legend-dot" style="background:#e0a857;"></span>Aslı</span>
+      </div>
+      <p class="sub" style="margin-top:10px;">Bir gün veri girilmediyse son bilinen değer devam ettirilir; bu, o gün yeni ölçüm yapıldığı anlamına gelmez.</p>
+    </div>
+  `;
+}
+
+function renderSharedNotes(s) {
+  const notes = s.shared.notes.slice().sort((a, b) => b.ts - a.ts);
+  return `
+    <div class="card">
+      <div class="field" style="margin-bottom:10px;">
+        <textarea id="note-input" placeholder="Küçük bir not bırak..."></textarea>
+      </div>
+      <button class="btn btn-primary btn-sm" id="note-send">Notu Gönder</button>
+    </div>
+    ${notes.length ? notes.map(n => `
+      <div class="sticky-note ${n.author === s.currentUser ? 'from-me' : ''}" data-note-id="${n.id}">
+        <div class="txt">${esc(n.text)}</div>
+        <div class="meta">${n.author === s.currentUser ? 'Sen' : (s.users[n.author] ? s.users[n.author].name : n.author)} · ${relativeDays(dateKey(new Date(n.ts)))}</div>
+        <div class="reactions">
+          ${REACTIONS.map(r => `<button data-react="${n.id}" data-emoji="${r}">${r}${n.reactions[r] ? `<span class="c">${n.reactions[r]}</span>` : ''}</button>`).join('')}
+        </div>
+      </div>`).join('') : `<div class="empty-state">Nothing here yet. Add your first note.</div>`}
+  `;
+}
+
+function renderSongs(s) {
+  const songs = s.shared.songs.slice().sort((a, b) => b.ts - a.ts);
+  return `
+    <div class="card">
+      <div class="section-title">Song of the Day 🎧</div>
+      <div class="field"><label>Song</label><input type="text" id="song-title" placeholder="örn. Sunday Morning"></div>
+      <div class="field"><label>Artist</label><input type="text" id="song-artist" placeholder="örn. Maroon 5"></div>
+      <div class="field"><label>Optional note</label><input type="text" id="song-note" placeholder="Kahve eşliğinde dinle ☕"></div>
+      <button class="btn btn-primary btn-sm" id="song-send">Şarkı Öner</button>
+    </div>
+    ${songs.length ? songs.map(sg => `
+      <div class="song-card">
+        <span class="song-emoji">🎵</span>
+        <div style="flex:1;">
+          <div><strong>${esc(sg.song)}</strong> — ${esc(sg.artist)}</div>
+          ${sg.note ? `<div class="note">${esc(sg.note)}</div>` : ''}
+          <div class="meta">${sg.author === s.currentUser ? 'Sen önerdin' : `${s.users[sg.author].name} önerdi`} · ${relativeDays(dateKey(new Date(sg.ts)))}</div>
+        </div>
+      </div>`).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+  `;
+}
+
+function renderWishlist(s) {
+  const items = s.shared.wishlist;
+  return `
+    <div class="card">
+      <div class="section-title">When we get there ✨</div>
+      <div class="stack" style="margin-bottom:12px;">
+        ${items.length ? items.map(it => `
+          <div class="wishlist-row" data-wish-id="${it.id}">
+            <button class="check ${it.done ? 'done' : ''}" data-toggle-wish="${it.id}">${it.done ? '✓' : ''}</button>
+            <span class="txt ${it.done ? 'done' : ''}">${esc(it.text)}</span>
+            <button class="btn-danger-ghost" data-del-wish="${it.id}">Sil</button>
+          </div>`).join('') : `<div class="empty-state">Nothing here yet. Add your first wish.</div>`}
+      </div>
+      <div class="field" style="display:flex;gap:8px;margin-bottom:0;">
+        <input type="text" id="wish-input" placeholder="örn. Weekend trip" style="flex:1;">
+        <button class="btn btn-primary btn-sm" id="wish-add">Ekle</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderActivityFeed(s) {
+  const items = s.shared.activity.slice(0, 30);
+  return `
+    <div class="card">
+      <div class="section-title">Activity Feed</div>
+      ${items.length ? items.map(a => `
+        <div class="feed-row">
+          <span>${a.icon}</span><span>${esc(a.text)}</span>
+          <span class="t">${relativeDays(dateKey(new Date(a.ts)))}</span>
+        </div>`).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+    </div>
+  `;
+}
+
+function wireTogether() {
+  const s = Store.get();
+  document.getElementById('together-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-tab]');
+    if (!btn) return;
+    App.togetherTab = btn.dataset.tab;
+    render();
+  });
+
+  if (App.togetherTab === 'chart') {
+    const ctx = document.getElementById('together-chart');
+    if (App.charts.together) { App.charts.together.destroy(); App.charts.together = null; }
+    const seriesA = getSeriesForRole(s, 'A');
+    const seriesB = getSeriesForRole(s, 'B');
+    if (typeof Chart === 'undefined') { ctx.parentElement.innerHTML = `<div class="empty-state">Grafik kütüphanesi yüklenemedi (internet bağlantısı gerekiyor).</div>`; return; }
+    App.charts.together = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: seriesA.map(p => fmtShort(p.key)),
+        datasets: [
+          { label: s.users.A.name, data: seriesA.map(p => p.value), borderColor: '#4f7358', backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesA.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: '#4f7358' },
+          { label: s.users.B.name, data: seriesB.map(p => p.value), borderColor: '#e0a857', backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesB.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: '#e0a857' },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { afterLabel: (item) => { const series = item.datasetIndex === 0 ? seriesA : seriesB; const p = series[item.dataIndex]; return p.isCarried ? `Last measured: ${relativeDays(p.lastKnownKey)}` : ''; } } }
+        },
+        scales: { y: { ticks: { font: { family: 'Space Mono' } } }, x: { ticks: { font: { size: 10 } } } }
+      }
+    });
+    return;
+  }
+
+  if (App.togetherTab === 'notes') {
+    document.getElementById('note-send').addEventListener('click', async () => {
+      const txt = document.getElementById('note-input').value.trim();
+      if (!txt) return;
+      try {
+        await runChange(st => { st.shared.notes.push({ id: uid(), author: st.currentUser, text: txt, ts: Date.now(), reactions: { '❤️': 0, '😂': 0, '🔥': 0, '🌱': 0 } }); }, 'ADD_SHARED_NOTE', { text: txt });
+      } catch (e) { toast('Gönderilemedi: ' + e.message); return; }
+      render();
+    });
+    document.querySelectorAll('[data-react]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.react, emoji = btn.dataset.emoji;
+        try {
+          await runChange(st => { const note = st.shared.notes.find(n => n.id === id); if (note) note.reactions[emoji] = (note.reactions[emoji] || 0) + 1; }, 'REACT_NOTE', { id, emoji });
+        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+        render();
+      });
+    });
+  }
+
+  if (App.togetherTab === 'songs') {
+    document.getElementById('song-send').addEventListener('click', async () => {
+      const song = document.getElementById('song-title').value.trim();
+      const artist = document.getElementById('song-artist').value.trim();
+      const note = document.getElementById('song-note').value.trim();
+      if (!song || !artist) { toast('Şarkı ve sanatçı adı gir.'); return; }
+      try {
+        await runChange(st => { st.shared.songs.push({ id: uid(), author: st.currentUser, song, artist, note, ts: Date.now() }); logActivity(st, '🎵', `${getUser(st, st.currentUser).name} recommended a song`); }, 'ADD_SONG', { song, artist, note });
+      } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+      render();
+    });
+  }
+
+  if (App.togetherTab === 'wishlist') {
+    document.getElementById('wish-add').addEventListener('click', async () => {
+      const val = document.getElementById('wish-input').value.trim();
+      if (!val) return;
+      try {
+        await runChange(st => { st.shared.wishlist.push({ id: uid(), text: val, done: false, addedBy: st.currentUser }); }, 'ADD_WISH', { text: val });
+      } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+      render();
+    });
+    document.querySelectorAll('[data-toggle-wish]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.toggleWish;
+        try {
+          await runChange(st => { const it = st.shared.wishlist.find(w => w.id === id); if (it) it.done = !it.done; }, 'TOGGLE_WISH', { id });
+        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+        render();
+      });
+    });
+    document.querySelectorAll('[data-del-wish]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.delWish;
+        try {
+          await runChange(st => { st.shared.wishlist = st.shared.wishlist.filter(w => w.id !== id); }, 'DELETE_WISH', { id });
+        } catch (e) { toast('Silinemedi: ' + e.message); return; }
+        render();
+      });
+    });
+  }
+}
+
+/* ---------------------------------------------------------------------
+   16. PROFILE
+   --------------------------------------------------------------------- */
+function renderProfile(s) {
+  const user = getUser(s, s.currentUser);
+  const isRemote = Store.mode() === 'remote';
+  return `
+    ${isRemote ? `
+    <div class="card">
+      <div class="section-title">Hesap</div>
+      <p class="sub" style="margin-top:-4px;">Bu link ${esc(user.name)} olarak sana özel. Başkasıyla paylaşma.</p>
+      <button class="btn btn-outline btn-sm" id="pf-logout" style="margin-top:10px;">Çıkış yap</button>
+    </div>` : `
+    <div class="card">
+      <div class="section-title">Viewing as</div>
+      <div class="user-toggle" id="profile-user-toggle" style="width:100%;">
+        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}" style="flex:1;">User A</button>
+        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}" style="flex:1;">User B</button>
+      </div>
+    </div>`}
+    <div class="card">
+      <div class="section-title">Hedeflerim</div>
+      <div class="field"><label>Hedef kilo (kg)</label><input type="number" step="0.1" id="pf-goal" value="${user.setup.goalWeight}"></div>
+      <div class="field"><label>Günlük su hedefi</label><input type="number" id="pf-water" value="${user.setup.waterGoal}"></div>
+      <div class="field"><label>Haftalık egzersiz hedefi</label><input type="number" id="pf-ex" value="${user.setup.exerciseGoal}"></div>
+      <button class="btn btn-primary btn-sm" id="pf-save">Güncelle</button>
+    </div>
+    ${isRemote ? '' : `
+    <div class="card">
+      <div class="section-title">Demo Data</div>
+      <p class="sub" style="margin-top:-4px;">Bu bir yerel demo modudur; veriler yalnızca bu tarayıcıda, localStorage üzerinde tutulur.</p>
+      <button class="btn btn-outline btn-sm" id="pf-reseed" style="margin-bottom:8px;">Demo Verisini Yenile</button>
+      <button class="btn btn-outline btn-sm" id="pf-reset">Sıfırla ve Onboarding'i Göster</button>
+    </div>`}
+  `;
+}
+function wireProfile() {
+  const toggle = document.getElementById('profile-user-toggle');
+  if (toggle) toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-user]');
+    if (!btn) return;
+    Store.update(s => { s.currentUser = btn.dataset.user; });
+    render();
+  });
+
+  document.getElementById('pf-save').addEventListener('click', async () => {
+    const goal = parseFloat(document.getElementById('pf-goal').value);
+    const water = parseInt(document.getElementById('pf-water').value, 10);
+    const ex = parseInt(document.getElementById('pf-ex').value, 10);
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); if (goal) u.setup.goalWeight = goal; if (water) u.setup.waterGoal = water; if (ex) u.setup.exerciseGoal = ex; }, 'UPDATE_GOALS', { goalWeight: goal, waterGoal: water, exerciseGoal: ex });
+      toast('Güncellendi.');
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    render();
+  });
+
+  const reseed = document.getElementById('pf-reseed');
+  if (reseed) reseed.addEventListener('click', () => { Store.reset(); App.route = 'home'; render(); toast('Demo verisi yenilendi.'); });
+  const hardReset = document.getElementById('pf-reset');
+  if (hardReset) hardReset.addEventListener('click', () => { Store.hardReset(); App.route = 'home'; render(); });
+  const logout = document.getElementById('pf-logout');
+  if (logout) logout.addEventListener('click', () => Store.logout());
+}
+
+/* ---------------------------------------------------------------------
+   17. INIT
+   --------------------------------------------------------------------- */
+document.addEventListener('DOMContentLoaded', async () => {
+  await Store.init();
+  render();
+});
+
+</script>
+</body>
+</html>

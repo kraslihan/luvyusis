@@ -1,0 +1,13 @@
+{
+  "name": "together-health-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Two-person health & habit tracker — static frontend + Vercel serverless API + Upstash Redis.",
+  "scripts": {
+    "dev": "node dev-server.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.3"
+  }
+}
