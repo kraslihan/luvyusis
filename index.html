@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Together — Health Tracker (Prototype)</title>
+<title>Together — Sağlık Takibi</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
@@ -28,6 +28,7 @@
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;}
+  html{overflow-y:scroll;scrollbar-gutter:stable;}
   body{
     background:var(--bg);
     color:var(--ink);
@@ -44,31 +45,37 @@
   #app-shell{
     max-width:460px;
     margin:0 auto;
-    min-height:100vh;
+    height:100vh;
     background:var(--bg);
     position:relative;
     display:flex;
     flex-direction:column;
+    overflow:hidden;
   }
   @media (min-width:520px){
     body{ background:#e9e3d3; display:flex; justify-content:center; }
     #app-shell{
       margin:20px auto;
-      min-height:calc(100vh - 40px);
+      height:calc(100vh - 40px);
       border-radius:32px;
       box-shadow:0 30px 60px -30px rgba(44,42,34,0.35), 0 0 0 1px rgba(44,42,34,0.06);
-      overflow:hidden;
     }
   }
 
+  /* Header and bottom nav are siblings of the scrolling container, so they
+     never move — only #view-container scrolls when content overflows. */
+  #top-bar-holder{flex:none;padding:18px 18px 0;background:var(--bg);position:relative;z-index:5;}
   #view-container{
-    flex:1;
-    padding:18px 18px 100px;
+    flex:1 1 auto;
+    min-height:0;
+    padding:10px 18px 24px;
     overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
   }
+  #bottom-nav-holder{flex:none;}
 
   /* ---------- top bar ---------- */
-  .top-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
+  .top-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
   .top-bar h1{font-size:21px;font-weight:800;margin:0;}
   .top-bar .sub{font-size:12.5px;color:var(--ink-dim);}
   .user-toggle{
@@ -231,6 +238,7 @@
 </head>
 <body>
 <div id="app-shell">
+  <div id="top-bar-holder"></div>
   <div id="view-container"></div>
   <div id="bottom-nav-holder"></div>
 </div>
@@ -257,16 +265,74 @@
    --------------------------------------------------------------------- */
 const STORAGE_KEY = 'together-health-demo-v1';
 const TOKEN_KEY = 'together-access-token';
-const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Other'];
-const EXERCISE_TYPES = ['Walking', 'Pilates', 'Gym', 'Running', 'Cycling', 'Yoga', 'Other'];
+const MEAL_TYPES = ['Kahvaltı', 'Öğle Yemeği', 'Akşam Yemeği', 'Atıştırmalık', 'Diğer'];
+const EXERCISE_TYPES = ['Yürüyüş', 'Pilates', 'Spor Salonu', 'Koşu', 'Bisiklet', 'Yoga', 'Diğer'];
 const REACTIONS = ['❤️', '😂', '🔥', '🌱'];
 const NAV_ITEMS = [
-  { id: 'home', label: 'Home', icon: '🏡' },
-  { id: 'today', label: 'Today', icon: '📝' },
-  { id: 'progress', label: 'Progress', icon: '📈' },
-  { id: 'together', label: 'Together', icon: '🌿' },
-  { id: 'profile', label: 'Profile', icon: '👤' },
+  { id: 'home', label: 'Anasayfa', icon: '🏡' },
+  { id: 'today', label: 'Bugün', icon: '📝' },
+  { id: 'progress', label: 'İlerleme', icon: '📈' },
+  { id: 'together', label: 'Birlikte', icon: '🌿' },
+  { id: 'profile', label: 'Profil', icon: '👤' },
 ];
+const TITLE_MAP = { home: 'Anasayfa', today: 'Bugün', progress: 'İlerleme', together: 'Birlikte', profile: 'Profil' };
+
+/* MET (metabolik eşdeğer) tablosu — egzersizde yakılan tahmini kaloriyi
+   hesaplamak için: kcal = MET * kilo(kg) * süre(saat). Kişinin kendi
+   kilosuyla hesaplanır, bu bilgi asla partnere gönderilmez. */
+const MET_BY_TYPE = { 'Yürüyüş': 3.5, 'Pilates': 3.0, 'Spor Salonu': 5.0, 'Koşu': 9.8, 'Bisiklet': 7.5, 'Yoga': 2.5, 'Diğer': 4.0 };
+function estimateExerciseKcal(type, durationMin, weightKg) {
+  const met = MET_BY_TYPE[type] != null ? MET_BY_TYPE[type] : MET_BY_TYPE['Diğer'];
+  const w = typeof weightKg === 'number' && weightKg > 0 ? weightKg : 70;
+  const kcal = met * w * (Math.max(0, durationMin || 0) / 60);
+  return Math.round(kcal / 5) * 5;
+}
+
+/* Basit, ücretsiz "Estimate AI": açıklama metnindeki yaygın Türkçe yiyecek
+   kelimelerini ve varsa önlerindeki sayıyı tanıyıp kabaca kalori toplar.
+   Gerçek bir AI değildir ama anahtar/maliyet gerektirmez. */
+const FOOD_DB = {
+  'yumurta': 90, 'ekmek': 80, 'tost': 320, 'simit': 300, 'peynir': 80, 'zeytin': 5,
+  'tavuk': 220, 'et': 260, 'köfte': 250, 'balık': 200, 'somon': 250,
+  'pilav': 200, 'bulgur': 180, 'makarna': 220, 'mercimek': 180, 'çorba': 150,
+  'salata': 60, 'sebze': 80, 'patates': 130, 'yoğurt': 100, 'süt': 120,
+  'muz': 90, 'elma': 80, 'meyve': 70, 'kuruyemiş': 180, 'badem': 170,
+  'çikolata': 220, 'kek': 350, 'baklava': 300, 'kurabiye': 150,
+  'menemen': 250, 'omlet': 200, 'granola': 180, 'yulaf': 150,
+  'ayran': 70, 'kola': 140, 'çay': 2, 'kahve': 5, 'reçel': 40, 'bal': 60,
+  'cips': 300, 'pizza': 285, 'hamburger': 550, 'döner': 450,
+};
+function estimateCalories(desc) {
+  const str = (desc || '').toLowerCase().trim();
+  const found = [];
+  let total = 0;
+  Object.keys(FOOD_DB).forEach(word => {
+    const re = new RegExp('(\\d+)?\\s*(' + word + '\\w*)', 'g');
+    let m;
+    while ((m = re.exec(str))) {
+      const qty = m[1] ? parseInt(m[1], 10) : 1;
+      total += FOOD_DB[word] * qty;
+      found.push(qty > 1 ? `${qty} ${word}` : word);
+    }
+  });
+  if (found.length) {
+    const mid = Math.round(total / 10) * 10;
+    const spread = Math.max(30, Math.round(mid * 0.15));
+    return {
+      mid, low: Math.max(0, mid - spread), high: mid + spread,
+      detected: 'Algılanan: ' + found.join(', '),
+    };
+  }
+  // Tanınan bir kelime yoksa deterministik kaba bir tahmine düş.
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  const mid = 220 + (hash % 480);
+  const spread = 45 + (hash % 45);
+  return {
+    mid: Math.round(mid / 10) * 10, low: Math.round((mid - spread) / 10) * 10, high: Math.round((mid + spread) / 10) * 10,
+    detected: 'Açıklamanı tam tanıyamadım, kaba bir tahmin bu.',
+  };
+}
 
 /* ---------------------------------------------------------------------
    2. DATE / FORMAT HELPERS
@@ -284,9 +350,9 @@ function daysBetween(keyA, keyB) { return Math.round((keyToDate(keyB) - keyToDat
 function relativeDays(key) {
   if (!key) return '—';
   const diff = daysBetween(key, todayKey());
-  if (diff === 0) return 'Today';
-  if (diff === 1) return '1 day ago';
-  return diff + ' days ago';
+  if (diff === 0) return 'Bugün';
+  if (diff === 1) return '1 gün önce';
+  return diff + ' gün önce';
 }
 function esc(s) {
   return (s == null ? '' : String(s)).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -319,10 +385,10 @@ function seedDemoState() {
   s.users.B.setup = { startWeight: 65.2, goalWeight: 60, targetDate: keyMinusDays(todayKey(), -45), waterGoal: 8, exerciseGoal: 3, startDate: keyMinusDays(todayKey(), 8) };
 
   const mealBank = {
-    Breakfast: ['Yulaf ezmesi + muz', 'Menemen', 'Yoğurt + granola', 'Peynirli tost'],
-    Lunch: ['Chicken salad + ayran', 'Mercimek çorbası + salata', 'Izgara tavuk + bulgur', 'Ton balıklı salata'],
-    Dinner: ['Sebzeli somon', 'Kırmızı mercimek köftesi', 'Fırında sebze + tavuk', 'Zeytinyağlı fasulye'],
-    Snack: ['Badem (bir avuç)', 'Elma + fıstık ezmesi', 'Kefir', 'Protein bar'],
+    'Kahvaltı': ['Yulaf ezmesi + muz', 'Menemen', 'Yoğurt + granola', 'Peynirli tost'],
+    'Öğle Yemeği': ['Tavuklu salata + ayran', 'Mercimek çorbası + salata', 'Izgara tavuk + bulgur', 'Ton balıklı salata'],
+    'Akşam Yemeği': ['Sebzeli somon', 'Kırmızı mercimek köftesi', 'Fırında sebze + tavuk', 'Zeytinyağlı fasulye'],
+    'Atıştırmalık': ['Badem (bir avuç)', 'Elma + fıstık ezmesi', 'Kefir', 'Protein bar'],
   };
   const exerciseNotes = ['Sahilde yürüyüş', 'Evde video eşliğinde', 'Salonda üst vücut', 'Parkta koşu', 'Rahat tempo'];
 
@@ -338,15 +404,17 @@ function seedDemoState() {
       day.weight = w;
       day.water = Math.floor(Math.random() * (user.setup.waterGoal + 2));
       day.checkin = true;
-      const mtypes = ['Breakfast', 'Lunch', 'Dinner'];
+      const mtypes = ['Kahvaltı', 'Öğle Yemeği', 'Akşam Yemeği'];
       mtypes.forEach((mt, mi) => {
-        const bank = mealBank[mt] || mealBank.Snack;
+        const bank = mealBank[mt] || mealBank['Atıştırmalık'];
         const desc = bank[(i + mi + uIdx) % bank.length];
         const mid = 250 + ((desc.length * 17 + i * 13) % 420);
-        day.meals.push({ id: uid(), type: mt, time: pad(8 + mi * 4) + ':' + (mi % 2 === 0 ? '15' : '40'), desc, photo: null, estimate: { mid, low: mid - 55, high: mid + 55 } });
+        day.meals.push({ id: uid(), type: mt, time: pad(8 + mi * 4) + ':' + (mi % 2 === 0 ? '15' : '40'), desc, estimate: { mid, low: mid - 55, high: mid + 55 } });
       });
       if (Math.random() > 0.3) {
-        day.exercises.push({ id: uid(), type: EXERCISE_TYPES[(i + uIdx) % EXERCISE_TYPES.length], duration: 20 + ((i * 7 + uIdx * 5) % 40), note: exerciseNotes[(i + uIdx) % exerciseNotes.length] });
+        const exType = EXERCISE_TYPES[(i + uIdx) % EXERCISE_TYPES.length];
+        const exDuration = 20 + ((i * 7 + uIdx * 5) % 40);
+        day.exercises.push({ id: uid(), type: exType, duration: exDuration, note: exerciseNotes[(i + uIdx) % exerciseNotes.length], estimatedKcal: estimateExerciseKcal(exType, exDuration, w) });
       }
       if (i === 3) day.note = uKey === 'A' ? 'Bugün kendimi çok iyi hissettim.' : 'Biraz yorgundum ama devam.';
       user.days[key] = day;
@@ -356,7 +424,7 @@ function seedDemoState() {
       today.checkin = true;
       today.weight = +(w - 0.2).toFixed(1);
       today.water = 3;
-      today.meals.push({ id: uid(), type: 'Breakfast', time: '08:20', desc: 'Yulaf ezmesi + muz', photo: null, estimate: { mid: 320, low: 270, high: 370 } });
+      today.meals.push({ id: uid(), type: 'Kahvaltı', time: '08:20', desc: 'Yulaf ezmesi + muz', estimate: { mid: 320, low: 270, high: 370 } });
       user.days[todayKey()] = today;
     }
   });
@@ -371,17 +439,17 @@ function seedDemoState() {
     { id: uid(), author: 'A', song: 'Islands', artist: 'The xx', note: '', ts: Date.now() - 3600e3 * 6 },
   ];
   s.shared.wishlist = [
-    { id: uid(), text: 'Weekend trip', done: false, addedBy: 'A' },
-    { id: uid(), text: 'New shoes', done: false, addedBy: 'B' },
-    { id: uid(), text: 'Fancy dinner', done: true, addedBy: 'A' },
-    { id: uid(), text: 'Something ridiculous', done: false, addedBy: 'B' },
+    { id: uid(), text: 'Hafta sonu gezisi', done: false, addedBy: 'A' },
+    { id: uid(), text: 'Yeni ayakkabı', done: false, addedBy: 'B' },
+    { id: uid(), text: 'Güzel bir akşam yemeği', done: true, addedBy: 'A' },
+    { id: uid(), text: 'Çılgın bir şey', done: false, addedBy: 'B' },
   ];
   s.shared.activity = [
-    { id: uid(), icon: '🌱', text: 'User A logged today', ts: Date.now() - 3600e3 * 1 },
-    { id: uid(), icon: '💧', text: 'User B completed water goal', ts: Date.now() - 3600e3 * 5 },
-    { id: uid(), icon: '🏃', text: 'User A added a 30 min walk', ts: Date.now() - 3600e3 * 9 },
-    { id: uid(), icon: '🔥', text: 'Together streak reached 7 days', ts: Date.now() - 3600e3 * 30 },
-    { id: uid(), icon: '🎵', text: 'User B recommended a song', ts: Date.now() - 3600e3 * 30.5 },
+    { id: uid(), icon: '🌱', text: 'Ezgi bugün check-in yaptı', ts: Date.now() - 3600e3 * 1 },
+    { id: uid(), icon: '💧', text: 'Aslı su hedefini tamamladı', ts: Date.now() - 3600e3 * 5 },
+    { id: uid(), icon: '🏃', text: 'Ezgi 30 dakika yürüyüş ekledi', ts: Date.now() - 3600e3 * 9 },
+    { id: uid(), icon: '🔥', text: 'Birlikte seri 7 güne ulaştı', ts: Date.now() - 3600e3 * 30 },
+    { id: uid(), icon: '🎵', text: 'Aslı bir şarkı önerdi', ts: Date.now() - 3600e3 * 30.5 },
   ];
   return s;
 }
@@ -464,23 +532,14 @@ function markCheckin(s, uKey) {
   const wasCheckedIn = day.checkin;
   day.checkin = true;
   if (!wasCheckedIn) {
-    logActivity(s, '🌱', `${user.name} logged today`);
+    logActivity(s, '🌱', `${user.name} bugün check-in yaptı`);
     const other = s.users[otherOf(uKey)];
     if (other.days[todayKey()] && other.days[todayKey()].checkin) {
       const t = computeTogetherStreak(s);
-      if (t > 0) logActivity(s, '🔥', `Together streak reached ${t} day${t === 1 ? '' : 's'}`);
+      if (t > 0) logActivity(s, '🔥', `Birlikte seri ${t} güne ulaştı`);
     }
   }
 }
-function estimateCalories(desc) {
-  const str = (desc || '').trim();
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  const mid = 220 + (hash % 480);
-  const spread = 45 + (hash % 45);
-  return { mid: Math.round(mid / 10) * 10, low: Math.round((mid - spread) / 10) * 10, high: Math.round((mid + spread) / 10) * 10 };
-}
-
 /** Partner-facing computed fields — same shape whether they come from the
  *  server (remote mode) or are computed locally (local demo mode). Never
  *  reads raw weight numbers for anyone but the current user. */
@@ -636,10 +695,12 @@ const App = { route: 'home', charts: {}, togetherTab: 'status', gateError: '' };
 function render() {
   const container = document.getElementById('view-container');
   const navHolder = document.getElementById('bottom-nav-holder');
+  const topHolder = document.getElementById('top-bar-holder');
 
   if (Store.mode() === 'gate') {
     container.innerHTML = renderGate();
     navHolder.innerHTML = '';
+    topHolder.innerHTML = '';
     wireGate();
     return;
   }
@@ -648,6 +709,7 @@ function render() {
   if (!s.onboarded[s.currentUser]) {
     container.innerHTML = renderOnboarding(s);
     navHolder.innerHTML = '';
+    topHolder.innerHTML = '';
     wireOnboarding();
     return;
   }
@@ -655,18 +717,20 @@ function render() {
   navHolder.innerHTML = renderBottomNav();
   wireBottomNav();
 
-  let html = renderTopBar(s);
+  topHolder.innerHTML = renderTopBar(s);
+  wireTopBar();
+
+  let html = '';
   switch (App.route) {
-    case 'today': html += renderToday(s); break;
-    case 'progress': html += renderProgress(s); break;
-    case 'together': html += renderTogether(s); break;
-    case 'profile': html += renderProfile(s); break;
-    default: html += renderHome(s);
+    case 'today': html = renderToday(s); break;
+    case 'progress': html = renderProgress(s); break;
+    case 'together': html = renderTogether(s); break;
+    case 'profile': html = renderProfile(s); break;
+    default: html = renderHome(s);
   }
   container.innerHTML = html;
   container.scrollTop = 0;
 
-  wireTopBar();
   if (App.route === 'today') wireToday();
   if (App.route === 'progress') wireProgress();
   if (App.route === 'together') wireTogether();
@@ -707,21 +771,20 @@ function wireGate() {
    9. TOP BAR
    --------------------------------------------------------------------- */
 function renderTopBar(s) {
-  const titleMap = { home: 'Home', today: 'Today', progress: 'Progress', together: 'Together', profile: 'Profile' };
   const isRemote = Store.mode() === 'remote';
   const me = getUser(s, s.currentUser);
   return `
     <div class="top-bar">
       <div>
-        <h1>${titleMap[App.route] || 'Home'}</h1>
+        <h1>${TITLE_MAP[App.route] || 'Anasayfa'}</h1>
         ${isRemote
           ? `<span class="sub">Merhaba, <strong>${esc(me.name)}</strong></span>`
-          : `<span class="sub">Viewing as: ${s.currentUser === 'A' ? '<strong>User A</strong> / User B' : 'User A / <strong>User B</strong>'}</span>`}
+          : `<span class="sub">Görüntülenen: ${s.currentUser === 'A' ? '<strong>Ezgi</strong> / Aslı' : 'Ezgi / <strong>Aslı</strong>'}</span>`}
       </div>
       ${isRemote ? '' : `
       <div class="user-toggle" id="user-toggle">
-        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}">User A</button>
-        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}">User B</button>
+        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}">Ezgi</button>
+        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}">Aslı</button>
       </div>`}
     </div>`;
 }
@@ -762,7 +825,7 @@ function renderOnboarding(s) {
     <div class="onboard-wrap">
       <div class="logo">🌿</div>
       <h1>Together</h1>
-      <p class="lede">${isRemote ? esc(me.name) : (uKey === 'A' ? 'User A' : 'User B')} için hedeflerini belirleyelim.</p>
+      <p class="lede">${isRemote ? esc(me.name) : (uKey === 'A' ? 'Ezgi' : 'Aslı')} için hedeflerini belirleyelim.</p>
       <div class="card onboard-card">
         <div class="field"><label for="ob-start">Şu anki kilo (kg)</label><input id="ob-start" type="number" step="0.1" min="1" placeholder="örn. 78.4"></div>
         <div class="field"><label for="ob-goal">Hedef kilo (kg)</label><input id="ob-goal" type="number" step="0.1" min="1" placeholder="örn. 70"></div>
@@ -772,7 +835,7 @@ function renderOnboarding(s) {
         <button class="btn btn-primary" id="ob-save">Panoyu Oluştur</button>
         <p class="sub" style="text-align:center;margin-top:10px;color:var(--bad);" id="ob-err"></p>
       </div>
-      ${isRemote ? '' : `<button class="btn-ghost" id="ob-switch">Diğer kullanıcıyı görüntüle (${uKey === 'A' ? 'User B' : 'User A'})</button>`}
+      ${isRemote ? '' : `<button class="btn-ghost" id="ob-switch">Diğer kullanıcıyı görüntüle (${uKey === 'A' ? 'Aslı' : 'Ezgi'})</button>`}
     </div>`;
 }
 function wireOnboarding() {
@@ -815,6 +878,9 @@ function renderHome(s) {
   const water = todayWater(user);
   const meals = todayMealCount(user);
   const exDone = todayExerciseDone(user);
+  const day = user.days[todayKey()] || blankDay();
+  const consumedKcal = day.meals.reduce((sum, m) => sum + (m.estimate ? m.estimate.mid : 0), 0);
+  const burnedKcal = day.exercises.reduce((sum, ex) => sum + (ex.estimatedKcal || 0), 0);
 
   return `
     <div class="row" style="margin-bottom:14px;">
@@ -825,8 +891,8 @@ function renderHome(s) {
     </div>
 
     <div class="streak-row">
-      <div class="streak-card"><div class="n num">${streak}</div><div class="lbl">Your Streak 🔥</div></div>
-      <div class="streak-card together"><div class="n num">${together}</div><div class="lbl">Together Streak 🌿</div></div>
+      <div class="streak-card"><div class="n num">${streak}</div><div class="lbl">Senin Serin 🔥</div></div>
+      <div class="streak-card together"><div class="n num">${together}</div><div class="lbl">Birlikte Seri 🌿</div></div>
     </div>
 
     <div class="partner-strip">
@@ -834,10 +900,15 @@ function renderHome(s) {
       <span style="font-size:13.5px;">${esc(other.name)} ${otherCheckedIn ? 'bugün check-in yaptı' : "bugün henüz check-in yapmadı"}</span>
     </div>
 
-    <div class="grid-3" style="margin-bottom:16px;">
+    <div class="grid-3" style="margin-bottom:12px;">
       <div class="mini-stat"><div class="lbl">Su</div><div class="val num">${water}/${user.setup.waterGoal}</div></div>
       <div class="mini-stat"><div class="lbl">Öğün</div><div class="val num">${meals}</div></div>
       <div class="mini-stat"><div class="lbl">Egzersiz</div><div class="val">${exDone ? '✓' : '—'}</div></div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="mini-stat"><div class="lbl">Tüketilen (tahmini)</div><div class="val num">${consumedKcal ? '≈ ' + consumedKcal + ' kcal' : '—'}</div></div>
+      <div class="mini-stat"><div class="lbl">Yakılan (tahmini)</div><div class="val num">${burnedKcal ? '≈ ' + burnedKcal + ' kcal' : '—'}</div></div>
     </div>
 
     <button class="btn btn-primary" id="home-cta" style="margin-bottom:8px;">Bugünü Kaydet</button>
@@ -871,7 +942,7 @@ function renderToday(s) {
 
     <div class="card">
       <div class="row" style="margin-bottom:10px;">
-        <div class="section-title" style="margin:0;">Meals</div>
+        <div class="section-title" style="margin:0;">Öğünler</div>
         <span class="pill pill-neutral">${day.meals.length} bugün</span>
       </div>
       <div id="meal-list">${renderMealList(day)}</div>
@@ -880,7 +951,7 @@ function renderToday(s) {
     </div>
 
     <div class="card">
-      <div class="section-title">Water</div>
+      <div class="section-title">Su</div>
       <div class="water-row">
         <button class="stepbtn" id="water-minus">–</button>
         <div class="glasses" id="glasses">${renderGlasses(day.water, user.setup.waterGoal)}</div>
@@ -891,7 +962,7 @@ function renderToday(s) {
 
     <div class="card">
       <div class="row" style="margin-bottom:10px;">
-        <div class="section-title" style="margin:0;">Exercise</div>
+        <div class="section-title" style="margin:0;">Egzersiz</div>
         <span class="pill pill-neutral">${day.exercises.length} bugün</span>
       </div>
       <div id="exercise-list">${renderExerciseList(day)}</div>
@@ -900,7 +971,7 @@ function renderToday(s) {
     </div>
 
     <div class="card">
-      <div class="section-title">Daily Note</div>
+      <div class="section-title">Günlük Not</div>
       <div class="field" style="margin-bottom:8px;">
         <textarea id="daily-note" placeholder="Bugün nasıl geçti?">${esc(day.note)}</textarea>
       </div>
@@ -915,7 +986,7 @@ function renderGlasses(count, goal) {
   return out;
 }
 function renderMealList(day) {
-  if (!day.meals.length) return `<div class="empty-state">No meals yet 👀</div>`;
+  if (!day.meals.length) return `<div class="empty-state">Henüz öğün yok 👀</div>`;
   return day.meals.map(m => `
     <div class="list-item" data-meal-id="${m.id}">
       <div class="top-row">
@@ -923,10 +994,12 @@ function renderMealList(day) {
           <strong>${esc(m.type)}</strong> <span class="meta">${esc(m.time)}</span>
           <div class="meta">${esc(m.desc)}</div>
         </div>
-        <button class="btn-danger-ghost" data-del-meal="${m.id}">Sil</button>
+        <div style="display:flex;gap:4px;flex:none;">
+          <button class="btn-ghost btn-sm" data-edit-meal="${m.id}">Düzenle</button>
+          <button class="btn-danger-ghost" data-del-meal="${m.id}">Sil</button>
+        </div>
       </div>
-      ${m.photo ? `<img class="photo" src="${m.photo}" alt="">` : ''}
-      ${m.estimate ? `<div class="estimate-box"><span class="mid num">≈ ${m.estimate.mid} kcal</span><div class="sub">Possible range: ${m.estimate.low}–${m.estimate.high} kcal</div></div>` : ''}
+      ${m.estimate ? `<div class="estimate-box"><span class="mid num">≈ ${m.estimate.mid} kcal</span><div class="sub">Olası aralık: ${m.estimate.low}–${m.estimate.high} kcal</div></div>` : ''}
     </div>`).join('') +
     (function () {
       const total = day.meals.reduce((sum, m) => sum + (m.estimate ? m.estimate.mid : 0), 0);
@@ -940,43 +1013,49 @@ function renderExerciseList(day) {
       <div class="top-row">
         <div><strong>${esc(ex.type)}</strong> <span class="meta">${ex.duration} dk</span>
           ${ex.note ? `<div class="meta">${esc(ex.note)}</div>` : ''}
+          ${ex.estimatedKcal ? `<div class="meta num">≈ ${ex.estimatedKcal} kcal yakıldı (tahmini)</div>` : ''}
         </div>
-        <button class="btn-danger-ghost" data-del-ex="${ex.id}">Sil</button>
+        <div style="display:flex;gap:4px;flex:none;">
+          <button class="btn-ghost btn-sm" data-edit-ex="${ex.id}">Düzenle</button>
+          <button class="btn-danger-ghost" data-del-ex="${ex.id}">Sil</button>
+        </div>
       </div>
     </div>`).join('');
 }
-function renderMealForm() {
+function renderMealForm(existing) {
+  const m = existing || { type: MEAL_TYPES[0], time: pad(new Date().getHours()) + ':' + pad(new Date().getMinutes()), desc: '', estimate: null };
   return `
-    <div class="meal-form" id="meal-form">
+    <div class="meal-form" id="meal-form" data-editing-id="${existing ? existing.id : ''}">
       <div class="field">
-        <label>Meal type</label>
-        <select id="mf-type">${MEAL_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+        <label>Öğün türü</label>
+        <select id="mf-type">${MEAL_TYPES.map(t => `<option value="${t}" ${t === m.type ? 'selected' : ''}>${t}</option>`).join('')}</select>
       </div>
-      <div class="grid-2">
-        <div class="field"><label>Saat</label><input type="time" id="mf-time" value="${pad(new Date().getHours())}:${pad(new Date().getMinutes())}"></div>
-        <div class="field"><label>Fotoğraf</label><input type="file" id="mf-photo" accept="image/*"></div>
-      </div>
-      <div class="field"><label>Açıklama</label><input type="text" id="mf-desc" placeholder="örn. Chicken salad + ayran"></div>
-      <div id="mf-photo-preview"></div>
-      <button class="btn btn-outline btn-sm" id="mf-estimate" style="margin-bottom:10px;">Estimate with AI</button>
-      <div id="mf-estimate-box"></div>
+      <div class="field"><label>Saat</label><input type="time" id="mf-time" value="${m.time}"></div>
+      <div class="field"><label>Açıklama</label><input type="text" id="mf-desc" placeholder="örn. Tavuklu salata + ayran" value="${esc(m.desc)}"></div>
+      <button class="btn btn-outline btn-sm" id="mf-estimate" style="margin-bottom:10px;${m.desc ? '' : 'display:none;'}">Estimate AI</button>
+      <div id="mf-estimate-box">${m.estimate ? renderEstimateBox(m.estimate) : ''}</div>
       <div style="display:flex;gap:10px;margin-top:6px;">
-        <button class="btn btn-primary" id="mf-save">Öğünü Kaydet</button>
+        <button class="btn btn-primary" id="mf-save">${existing ? 'Değişikliği Kaydet' : 'Öğünü Kaydet'}</button>
         <button class="btn btn-outline" id="mf-cancel">Vazgeç</button>
       </div>
     </div>`;
 }
-function renderExerciseForm() {
+function renderEstimateBox(estimate) {
+  return `<div class="estimate-box"><span class="mid num">≈ ${estimate.mid} kcal</span><div class="sub">Olası aralık: ${estimate.low}–${estimate.high} kcal</div>${estimate.detected ? `<div class="sub" style="margin-top:4px;">${esc(estimate.detected)}</div>` : ''}<div class="sub" style="margin-top:4px;">Bu bir tahmindir, kesin değer değildir.</div></div>`;
+}
+function renderExerciseForm(existing) {
+  const ex = existing || { type: EXERCISE_TYPES[0], duration: 30, note: '' };
   return `
-    <div class="exercise-form" id="exercise-form">
+    <div class="exercise-form" id="exercise-form" data-editing-id="${existing ? existing.id : ''}">
       <div class="field">
-        <label>Exercise Type</label>
-        <select id="ef-type">${EXERCISE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}</select>
+        <label>Egzersiz türü</label>
+        <select id="ef-type">${EXERCISE_TYPES.map(t => `<option value="${t}" ${t === ex.type ? 'selected' : ''}>${t}</option>`).join('')}</select>
       </div>
-      <div class="field"><label>Duration (dk)</label><input type="number" id="ef-duration" min="1" value="30"></div>
-      <div class="field"><label>Optional Note</label><input type="text" id="ef-note" placeholder="örn. Sahilde yürüyüş"></div>
+      <div class="field"><label>Süre (dk)</label><input type="number" id="ef-duration" min="1" value="${ex.duration}"></div>
+      <div class="field"><label>Not (opsiyonel)</label><input type="text" id="ef-note" placeholder="örn. Sahilde yürüyüş" value="${esc(ex.note || '')}"></div>
+      <p class="sub" id="ef-kcal-preview" style="margin:-4px 0 10px;">Tahmini yakılan: <strong class="num">≈ ${estimateExerciseKcal(ex.type, ex.duration, currentWeight(getUser(Store.get(), Store.get().currentUser)))} kcal</strong></p>
       <div style="display:flex;gap:10px;">
-        <button class="btn btn-primary" id="ef-save">Egzersizi Kaydet</button>
+        <button class="btn btn-primary" id="ef-save">${existing ? 'Değişikliği Kaydet' : 'Egzersizi Kaydet'}</button>
         <button class="btn btn-outline" id="ef-cancel">Vazgeç</button>
       </div>
     </div>`;
@@ -985,6 +1064,7 @@ function renderExerciseForm() {
 function wireToday() {
   const s = Store.get();
   const key = todayKey();
+  const day = getUser(s, s.currentUser).days[key] || blankDay();
 
   document.getElementById('save-weight').addEventListener('click', async () => {
     const val = parseFloat(document.getElementById('today-weight').value);
@@ -1008,23 +1088,47 @@ function wireToday() {
   });
 
   document.getElementById('meal-list').addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-del-meal]');
-    if (!btn) return;
-    const id = btn.dataset.delMeal;
-    try {
-      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.meals = d.meals.filter(m => m.id !== id); }, 'DELETE_MEAL', { id });
-    } catch (e) { toast('Silinemedi: ' + e.message); return; }
-    render();
+    const delBtn = e.target.closest('button[data-del-meal]');
+    const editBtn = e.target.closest('button[data-edit-meal]');
+    if (delBtn) {
+      const id = delBtn.dataset.delMeal;
+      try {
+        await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.meals = d.meals.filter(m => m.id !== id); }, 'DELETE_MEAL', { id });
+      } catch (e) { toast('Silinemedi: ' + e.message); return; }
+      render();
+      return;
+    }
+    if (editBtn) {
+      const id = editBtn.dataset.editMeal;
+      const meal = day.meals.find(m => m.id === id);
+      if (!meal) return;
+      const holder = document.getElementById('meal-form-holder');
+      holder.innerHTML = renderMealForm(meal);
+      wireMealForm(meal);
+      holder.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   });
 
   document.getElementById('exercise-list').addEventListener('click', async (e) => {
-    const btn = e.target.closest('button[data-del-ex]');
-    if (!btn) return;
-    const id = btn.dataset.delEx;
-    try {
-      await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.exercises = d.exercises.filter(ex => ex.id !== id); }, 'DELETE_EXERCISE', { id });
-    } catch (e) { toast('Silinemedi: ' + e.message); return; }
-    render();
+    const delBtn = e.target.closest('button[data-del-ex]');
+    const editBtn = e.target.closest('button[data-edit-ex]');
+    if (delBtn) {
+      const id = delBtn.dataset.delEx;
+      try {
+        await runChange(st => { const u = getUser(st, st.currentUser); const d = ensureDay(u, key); d.exercises = d.exercises.filter(ex => ex.id !== id); }, 'DELETE_EXERCISE', { id });
+      } catch (e) { toast('Silinemedi: ' + e.message); return; }
+      render();
+      return;
+    }
+    if (editBtn) {
+      const id = editBtn.dataset.editEx;
+      const ex = day.exercises.find(ex => ex.id === id);
+      if (!ex) return;
+      const holder = document.getElementById('exercise-form-holder');
+      holder.innerHTML = renderExerciseForm(ex);
+      wireExerciseForm(ex);
+      holder.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   });
 
   document.getElementById('water-plus').addEventListener('click', async () => {
@@ -1049,25 +1153,19 @@ function wireToday() {
   });
 }
 
-function wireMealForm() {
-  let photoData = null;
-  document.getElementById('mf-photo').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      photoData = reader.result;
-      document.getElementById('mf-photo-preview').innerHTML = `<img class="photo" src="${photoData}" alt="">`;
-    };
-    reader.readAsDataURL(file);
+function wireMealForm(existing) {
+  const descInput = document.getElementById('mf-desc');
+  const estimateBtn = document.getElementById('mf-estimate');
+  let estimate = existing ? existing.estimate : null;
+
+  descInput.addEventListener('input', () => {
+    estimateBtn.style.display = descInput.value.trim() ? '' : 'none';
   });
 
-  let estimate = null;
-  document.getElementById('mf-estimate').addEventListener('click', () => {
-    const desc = document.getElementById('mf-desc').value || document.getElementById('mf-type').value;
+  estimateBtn.addEventListener('click', () => {
+    const desc = descInput.value || document.getElementById('mf-type').value;
     estimate = estimateCalories(desc);
-    document.getElementById('mf-estimate-box').innerHTML =
-      `<div class="estimate-box"><span class="mid num">≈ ${estimate.mid} kcal</span><div class="sub">Possible range: ${estimate.low}–${estimate.high} kcal</div><div class="sub" style="margin-top:4px;">Bu bir tahmindir, kesin değer değildir.</div></div>`;
+    document.getElementById('mf-estimate-box').innerHTML = renderEstimateBox(estimate);
   });
 
   document.getElementById('mf-cancel').addEventListener('click', () => { document.getElementById('meal-form-holder').innerHTML = ''; });
@@ -1075,38 +1173,67 @@ function wireMealForm() {
   document.getElementById('mf-save').addEventListener('click', async () => {
     const type = document.getElementById('mf-type').value;
     const time = document.getElementById('mf-time').value;
-    const desc = document.getElementById('mf-desc').value.trim();
+    const desc = descInput.value.trim();
     if (!desc) { toast('Kısa bir açıklama gir.'); return; }
-    const payload = { type, time, desc, photo: photoData, estimate };
+    const isEdit = !!existing;
+    const id = isEdit ? existing.id : uid();
+    const payload = isEdit ? { id, type, time, desc, estimate } : { type, time, desc, estimate };
     try {
       await runChange(st => {
         const u = getUser(st, st.currentUser);
         const d = ensureDay(u, todayKey());
-        d.meals.push({ id: uid(), type, time, desc, photo: photoData, estimate });
-        markCheckin(st, st.currentUser);
-      }, 'ADD_MEAL', payload);
-    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
-    toast('Öğün eklendi.');
+        if (isEdit) {
+          const m = d.meals.find(m => m.id === id);
+          if (m) { m.type = type; m.time = time; m.desc = desc; m.estimate = estimate; }
+        } else {
+          d.meals.push({ id, type, time, desc, estimate });
+          markCheckin(st, st.currentUser);
+        }
+      }, isEdit ? 'EDIT_MEAL' : 'ADD_MEAL', payload);
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    toast(isEdit ? 'Öğün güncellendi.' : 'Öğün eklendi.');
+    document.getElementById('meal-form-holder').innerHTML = '';
     render();
   });
 }
 
-function wireExerciseForm() {
+function wireExerciseForm(existing) {
+  const typeSel = document.getElementById('ef-type');
+  const durationInput = document.getElementById('ef-duration');
+  const preview = document.getElementById('ef-kcal-preview');
+  function updatePreview() {
+    const s = Store.get();
+    const w = currentWeight(getUser(s, s.currentUser));
+    const kcal = estimateExerciseKcal(typeSel.value, parseInt(durationInput.value, 10) || 0, w);
+    preview.innerHTML = `Tahmini yakılan: <strong class="num">≈ ${kcal} kcal</strong>`;
+  }
+  typeSel.addEventListener('change', updatePreview);
+  durationInput.addEventListener('input', updatePreview);
+
   document.getElementById('ef-cancel').addEventListener('click', () => { document.getElementById('exercise-form-holder').innerHTML = ''; });
   document.getElementById('ef-save').addEventListener('click', async () => {
-    const type = document.getElementById('ef-type').value;
-    const duration = parseInt(document.getElementById('ef-duration').value, 10) || 0;
+    const type = typeSel.value;
+    const duration = parseInt(durationInput.value, 10) || 0;
     const note = document.getElementById('ef-note').value.trim();
+    const isEdit = !!existing;
+    const id = isEdit ? existing.id : uid();
     try {
       await runChange(st => {
         const u = getUser(st, st.currentUser);
         const d = ensureDay(u, todayKey());
-        d.exercises.push({ id: uid(), type, duration, note });
-        markCheckin(st, st.currentUser);
-        logActivity(st, '🏃', `${u.name} added a ${duration} min ${type.toLowerCase()}`);
-      }, 'ADD_EXERCISE', { type, duration, note });
-    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
-    toast('Egzersiz eklendi.');
+        const kcal = estimateExerciseKcal(type, duration, currentWeight(u));
+        if (isEdit) {
+          const ex = d.exercises.find(ex => ex.id === id);
+          if (ex) { ex.type = type; ex.duration = duration; ex.note = note; ex.estimatedKcal = kcal; }
+        } else {
+          d.exercises.push({ id, type, duration, note, estimatedKcal: kcal });
+          markCheckin(st, st.currentUser);
+          logActivity(st, '🏃', `${u.name} ${duration} dakika ${type} ekledi`);
+        }
+      }, isEdit ? 'EDIT_EXERCISE' : 'ADD_EXERCISE', { id, type, duration, note });
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    toast(isEdit ? 'Egzersiz güncellendi.' : 'Egzersiz eklendi.');
+    document.getElementById('exercise-form-holder').innerHTML = '';
     render();
   });
 }
@@ -1123,12 +1250,12 @@ function renderProgress(s) {
 
   return `
     <div class="grid-2" style="margin-bottom:14px;">
-      <div class="mini-stat"><div class="lbl">Total Change</div><div class="val num">${change == null ? '—' : (change > 0 ? '+' : '') + change + ' kg'}</div></div>
-      <div class="mini-stat"><div class="lbl">Current Streak</div><div class="val num">${streak} gün</div></div>
+      <div class="mini-stat"><div class="lbl">Toplam Değişim</div><div class="val num">${change == null ? '—' : (change > 0 ? '+' : '') + change + ' kg'}</div></div>
+      <div class="mini-stat"><div class="lbl">Güncel Seri</div><div class="val num">${streak} gün</div></div>
     </div>
 
     <div class="card">
-      <div class="section-title">Goal Progress</div>
+      <div class="section-title">Hedef İlerlemesi</div>
       <div style="height:10px;border-radius:6px;background:var(--surface-2);overflow:hidden;margin-bottom:8px;">
         <div style="height:100%;width:${pct.toFixed(0)}%;background:linear-gradient(90deg,var(--accent),var(--accent-strong));border-radius:6px;"></div>
       </div>
@@ -1136,19 +1263,19 @@ function renderProgress(s) {
     </div>
 
     <div class="card">
-      <div class="section-title">Weight Trend</div>
+      <div class="section-title">Kilo Trendi</div>
       <div class="chart-wrap"><canvas id="progress-chart"></canvas></div>
     </div>
 
     <div class="card">
-      <div class="section-title">Check-in History</div>
+      <div class="section-title">Check-in Geçmişi</div>
       ${history.length ? history.map(k => {
         const d = user.days[k];
         return `<div class="row" style="padding:7px 0;border-bottom:1px solid var(--border);">
           <span class="sub">${fmtShort(k)}</span>
           <span class="pill ${d.checkin ? 'pill-good' : 'pill-bad'}">${d.checkin ? '✓ Check-in' : 'Kayıt yok'}</span>
         </div>`;
-      }).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+      }).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
     </div>
   `;
 }
@@ -1179,6 +1306,10 @@ const TOGETHER_TABS = [
   { id: 'feed', label: 'Feed' },
 ];
 
+/* Role A is always Ezgi, role B is always Aslı (fixed identity, not viewer-
+   dependent) — used to keep chart/legend colors consistent for both. */
+const ROLE_COLOR = { A: '#8b5cf6', B: '#3b82f6' }; // Ezgi = mor, Aslı = mavi
+
 function renderTogether(s) {
   const other = getUser(s, otherOf(s.currentUser));
   let body = '';
@@ -1198,40 +1329,52 @@ function renderTogether(s) {
 }
 
 function renderTogetherStatus(s, other) {
-  const checkedIn = todayCheckin(other);
-  const water = todayWater(other);
-  const meals = todayMealCount(other);
-  const exDone = todayExerciseDone(other);
+  const me = getUser(s, s.currentUser);
   const meta = getPartnerMeta(s, other);
+  const myChange = totalChange(me);
+
+  const rows = [
+    { label: 'Check-in', mine: todayCheckin(me) ? '✓ Yapıldı' : 'Yapılmadı', theirs: todayCheckin(other) ? '✓ Yapıldı' : 'Yapılmadı', mineGood: todayCheckin(me), theirsGood: todayCheckin(other) },
+    { label: 'Öğün', mine: todayMealCount(me) ? todayMealCount(me) + ' öğün' : 'Henüz yok', theirs: todayMealCount(other) ? todayMealCount(other) + ' öğün' : 'Henüz yok', mineGood: !!todayMealCount(me), theirsGood: !!todayMealCount(other) },
+    { label: 'Su', mine: `${todayWater(me)}/${me.setup.waterGoal}`, theirs: `${todayWater(other)}/${other.setup.waterGoal}`, mineGood: todayWater(me) >= me.setup.waterGoal, theirsGood: todayWater(other) >= other.setup.waterGoal },
+    { label: 'Egzersiz', mine: todayExerciseDone(me) ? '✓ Yapıldı' : 'Henüz yok', theirs: todayExerciseDone(other) ? '✓ Yapıldı' : 'Henüz yok', mineGood: todayExerciseDone(me), theirsGood: todayExerciseDone(other) },
+  ];
 
   return `
     <div class="card">
-      <div class="section-title">${esc(other.name)} — Today</div>
-      ${!checkedIn ? `<div class="empty-state">Your partner hasn't checked in today.</div>` : ''}
-      <div class="stack" style="margin-top:${checkedIn ? '0' : '12px'};">
-        <div class="row"><span class="sub">Check-in</span><span class="pill ${checkedIn ? 'pill-good' : 'pill-bad'}">${checkedIn ? '✓ Yapıldı' : 'Yapılmadı'}</span></div>
-        <div class="row"><span class="sub">Meal logged?</span><span class="pill ${meals ? 'pill-good' : 'pill-neutral'}">${meals ? meals + ' öğün' : 'Henüz yok'}</span></div>
-        <div class="row"><span class="sub">Water</span><span class="pill ${water >= other.setup.waterGoal ? 'pill-good' : 'pill-neutral'}">${water}/${other.setup.waterGoal}</span></div>
-        <div class="row"><span class="sub">Exercise</span><span class="pill ${exDone ? 'pill-good' : 'pill-neutral'}">${exDone ? '✓ Yapıldı' : 'Henüz yok'}</span></div>
-        <div class="row"><span class="sub">Last update</span><span class="sub num">${relativeDays(meta.lastUpdateKey)}</span></div>
+      <div class="section-title">Bugün — ${esc(me.name)} vs ${esc(other.name)}</div>
+      <div class="row" style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);">
+        <span class="sub" style="flex:1;"></span>
+        <span class="sub" style="flex:1;text-align:center;font-weight:800;">Sen (${esc(me.name)})</span>
+        <span class="sub" style="flex:1;text-align:center;font-weight:800;">${esc(other.name)}</span>
       </div>
+      ${rows.map(r => `
+        <div class="row" style="padding:6px 0;">
+          <span class="sub" style="flex:1;">${r.label}</span>
+          <span style="flex:1;text-align:center;"><span class="pill ${r.mineGood ? 'pill-good' : 'pill-neutral'}">${r.mine}</span></span>
+          <span style="flex:1;text-align:center;"><span class="pill ${r.theirsGood ? 'pill-good' : 'pill-neutral'}">${r.theirs}</span></span>
+        </div>`).join('')}
+      <div class="row" style="padding-top:8px;"><span class="sub">${esc(other.name)} son güncelleme</span><span class="sub num">${relativeDays(meta.lastUpdateKey)}</span></div>
     </div>
     <div class="card">
-      <div class="section-title">Weight</div>
-      <p class="sub" style="margin-top:-4px;">Gizlilik nedeniyle yalnızca değişim gösterilir, gerçek kilo görünmez.</p>
-      <div class="mini-stat" style="margin-top:10px;"><div class="lbl">Total Change</div><div class="val num">${meta.totalChange == null ? '—' : (meta.totalChange > 0 ? '+' : '') + meta.totalChange + ' kg'}</div></div>
+      <div class="section-title">Kilo</div>
+      <p class="sub" style="margin-top:-4px;">Gizlilik nedeniyle yalnızca değişim gösterilir, gerçek kilo hiçbir zaman karşı tarafa gönderilmez.</p>
+      <div class="grid-2" style="margin-top:10px;">
+        <div class="mini-stat"><div class="lbl">Sen (${esc(me.name)})</div><div class="val num">${myChange == null ? '—' : (myChange > 0 ? '+' : '') + myChange + ' kg'}</div></div>
+        <div class="mini-stat"><div class="lbl">${esc(other.name)}</div><div class="val num">${meta.totalChange == null ? '—' : (meta.totalChange > 0 ? '+' : '') + meta.totalChange + ' kg'}</div></div>
+      </div>
     </div>
   `;
 }
 
-function renderTogetherChart() {
+function renderTogetherChart(s) {
   return `
     <div class="card">
-      <div class="section-title">Change from starting weight</div>
+      <div class="section-title">Başlangıç kilosuna göre değişim</div>
       <div class="chart-wrap"><canvas id="together-chart"></canvas></div>
       <div class="legend-row">
-        <span><span class="legend-dot" style="background:#4f7358;"></span>Ezgi</span>
-        <span><span class="legend-dot" style="background:#e0a857;"></span>Aslı</span>
+        <span><span class="legend-dot" style="background:${ROLE_COLOR.A};"></span>${esc(s.users.A.name)}</span>
+        <span><span class="legend-dot" style="background:${ROLE_COLOR.B};"></span>${esc(s.users.B.name)}</span>
       </div>
       <p class="sub" style="margin-top:10px;">Bir gün veri girilmediyse son bilinen değer devam ettirilir; bu, o gün yeni ölçüm yapıldığı anlamına gelmez.</p>
     </div>
@@ -1249,12 +1392,15 @@ function renderSharedNotes(s) {
     </div>
     ${notes.length ? notes.map(n => `
       <div class="sticky-note ${n.author === s.currentUser ? 'from-me' : ''}" data-note-id="${n.id}">
-        <div class="txt">${esc(n.text)}</div>
+        <div class="row" style="align-items:flex-start;">
+          <div class="txt" style="flex:1;">${esc(n.text)}${n.edited ? ' <span class="meta">(düzenlendi)</span>' : ''}</div>
+          ${n.author === s.currentUser ? `<div style="display:flex;gap:4px;flex:none;"><button class="btn-ghost btn-sm" data-edit-note="${n.id}">Düzenle</button><button class="btn-danger-ghost" data-del-note="${n.id}">Sil</button></div>` : ''}
+        </div>
         <div class="meta">${n.author === s.currentUser ? 'Sen' : (s.users[n.author] ? s.users[n.author].name : n.author)} · ${relativeDays(dateKey(new Date(n.ts)))}</div>
         <div class="reactions">
           ${REACTIONS.map(r => `<button data-react="${n.id}" data-emoji="${r}">${r}${n.reactions[r] ? `<span class="c">${n.reactions[r]}</span>` : ''}</button>`).join('')}
         </div>
-      </div>`).join('') : `<div class="empty-state">Nothing here yet. Add your first note.</div>`}
+      </div>`).join('') : `<div class="empty-state">Henüz bir şey yok. İlk notunu ekle.</div>`}
   `;
 }
 
@@ -1263,20 +1409,21 @@ function renderSongs(s) {
   return `
     <div class="card">
       <div class="section-title">Song of the Day 🎧</div>
-      <div class="field"><label>Song</label><input type="text" id="song-title" placeholder="örn. Sunday Morning"></div>
-      <div class="field"><label>Artist</label><input type="text" id="song-artist" placeholder="örn. Maroon 5"></div>
-      <div class="field"><label>Optional note</label><input type="text" id="song-note" placeholder="Kahve eşliğinde dinle ☕"></div>
+      <div class="field"><label>Şarkı</label><input type="text" id="song-title" placeholder="örn. Sunday Morning"></div>
+      <div class="field"><label>Sanatçı</label><input type="text" id="song-artist" placeholder="örn. Maroon 5"></div>
+      <div class="field"><label>Not (opsiyonel)</label><input type="text" id="song-note" placeholder="Kahve eşliğinde dinle ☕"></div>
       <button class="btn btn-primary btn-sm" id="song-send">Şarkı Öner</button>
     </div>
     ${songs.length ? songs.map(sg => `
-      <div class="song-card">
+      <div class="song-card" data-song-id="${sg.id}">
         <span class="song-emoji">🎵</span>
         <div style="flex:1;">
           <div><strong>${esc(sg.song)}</strong> — ${esc(sg.artist)}</div>
           ${sg.note ? `<div class="note">${esc(sg.note)}</div>` : ''}
           <div class="meta">${sg.author === s.currentUser ? 'Sen önerdin' : `${s.users[sg.author].name} önerdi`} · ${relativeDays(dateKey(new Date(sg.ts)))}</div>
         </div>
-      </div>`).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+        ${sg.author === s.currentUser ? `<button class="btn-danger-ghost" data-del-song="${sg.id}">Sil</button>` : ''}
+      </div>`).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
   `;
 }
 
@@ -1290,11 +1437,12 @@ function renderWishlist(s) {
           <div class="wishlist-row" data-wish-id="${it.id}">
             <button class="check ${it.done ? 'done' : ''}" data-toggle-wish="${it.id}">${it.done ? '✓' : ''}</button>
             <span class="txt ${it.done ? 'done' : ''}">${esc(it.text)}</span>
+            <button class="btn-ghost btn-sm" data-edit-wish="${it.id}">Düzenle</button>
             <button class="btn-danger-ghost" data-del-wish="${it.id}">Sil</button>
-          </div>`).join('') : `<div class="empty-state">Nothing here yet. Add your first wish.</div>`}
+          </div>`).join('') : `<div class="empty-state">Henüz bir şey yok. İlk dileğini ekle.</div>`}
       </div>
       <div class="field" style="display:flex;gap:8px;margin-bottom:0;">
-        <input type="text" id="wish-input" placeholder="örn. Weekend trip" style="flex:1;">
+        <input type="text" id="wish-input" placeholder="örn. Hafta sonu gezisi" style="flex:1;">
         <button class="btn btn-primary btn-sm" id="wish-add">Ekle</button>
       </div>
     </div>
@@ -1305,12 +1453,12 @@ function renderActivityFeed(s) {
   const items = s.shared.activity.slice(0, 30);
   return `
     <div class="card">
-      <div class="section-title">Activity Feed</div>
+      <div class="section-title">Aktivite Akışı</div>
       ${items.length ? items.map(a => `
         <div class="feed-row">
           <span>${a.icon}</span><span>${esc(a.text)}</span>
           <span class="t">${relativeDays(dateKey(new Date(a.ts)))}</span>
-        </div>`).join('') : `<div class="empty-state">Nothing here yet.</div>`}
+        </div>`).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
     </div>
   `;
 }
@@ -1335,8 +1483,8 @@ function wireTogether() {
       data: {
         labels: seriesA.map(p => fmtShort(p.key)),
         datasets: [
-          { label: s.users.A.name, data: seriesA.map(p => p.value), borderColor: '#4f7358', backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesA.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: '#4f7358' },
-          { label: s.users.B.name, data: seriesB.map(p => p.value), borderColor: '#e0a857', backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesB.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: '#e0a857' },
+          { label: s.users.A.name, data: seriesA.map(p => p.value), borderColor: ROLE_COLOR.A, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesA.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.A },
+          { label: s.users.B.name, data: seriesB.map(p => p.value), borderColor: ROLE_COLOR.B, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesB.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.B },
         ]
       },
       options: {
@@ -1369,6 +1517,28 @@ function wireTogether() {
         render();
       });
     });
+    document.querySelectorAll('[data-edit-note]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.editNote;
+        const note = s.shared.notes.find(n => n.id === id);
+        if (!note) return;
+        const next = prompt('Notu düzenle:', note.text);
+        if (next == null || !next.trim()) return;
+        try {
+          await runChange(st => { const n = st.shared.notes.find(n => n.id === id); if (n) { n.text = next.trim(); n.edited = true; } }, 'EDIT_SHARED_NOTE', { id, text: next.trim() });
+        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+        render();
+      });
+    });
+    document.querySelectorAll('[data-del-note]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.delNote;
+        try {
+          await runChange(st => { st.shared.notes = st.shared.notes.filter(n => n.id !== id); }, 'DELETE_SHARED_NOTE', { id });
+        } catch (e) { toast('Silinemedi: ' + e.message); return; }
+        render();
+      });
+    });
   }
 
   if (App.togetherTab === 'songs') {
@@ -1378,9 +1548,18 @@ function wireTogether() {
       const note = document.getElementById('song-note').value.trim();
       if (!song || !artist) { toast('Şarkı ve sanatçı adı gir.'); return; }
       try {
-        await runChange(st => { st.shared.songs.push({ id: uid(), author: st.currentUser, song, artist, note, ts: Date.now() }); logActivity(st, '🎵', `${getUser(st, st.currentUser).name} recommended a song`); }, 'ADD_SONG', { song, artist, note });
+        await runChange(st => { st.shared.songs.push({ id: uid(), author: st.currentUser, song, artist, note, ts: Date.now() }); logActivity(st, '🎵', `${getUser(st, st.currentUser).name} bir şarkı önerdi`); }, 'ADD_SONG', { song, artist, note });
       } catch (e) { toast('Eklenemedi: ' + e.message); return; }
       render();
+    });
+    document.querySelectorAll('[data-del-song]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.delSong;
+        try {
+          await runChange(st => { st.shared.songs = st.shared.songs.filter(sg => sg.id !== id); }, 'DELETE_SONG', { id });
+        } catch (e) { toast('Silinemedi: ' + e.message); return; }
+        render();
+      });
     });
   }
 
@@ -1398,6 +1577,19 @@ function wireTogether() {
         const id = btn.dataset.toggleWish;
         try {
           await runChange(st => { const it = st.shared.wishlist.find(w => w.id === id); if (it) it.done = !it.done; }, 'TOGGLE_WISH', { id });
+        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+        render();
+      });
+    });
+    document.querySelectorAll('[data-edit-wish]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.editWish;
+        const it = s.shared.wishlist.find(w => w.id === id);
+        if (!it) return;
+        const next = prompt('Dileği düzenle:', it.text);
+        if (next == null || !next.trim()) return;
+        try {
+          await runChange(st => { const w = st.shared.wishlist.find(w => w.id === id); if (w) w.text = next.trim(); }, 'EDIT_WISH', { id, text: next.trim() });
         } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
         render();
       });
@@ -1428,10 +1620,10 @@ function renderProfile(s) {
       <button class="btn btn-outline btn-sm" id="pf-logout" style="margin-top:10px;">Çıkış yap</button>
     </div>` : `
     <div class="card">
-      <div class="section-title">Viewing as</div>
+      <div class="section-title">Görüntülenen</div>
       <div class="user-toggle" id="profile-user-toggle" style="width:100%;">
-        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}" style="flex:1;">User A</button>
-        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}" style="flex:1;">User B</button>
+        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}" style="flex:1;">Ezgi</button>
+        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}" style="flex:1;">Aslı</button>
       </div>
     </div>`}
     <div class="card">
@@ -1441,9 +1633,14 @@ function renderProfile(s) {
       <div class="field"><label>Haftalık egzersiz hedefi</label><input type="number" id="pf-ex" value="${user.setup.exerciseGoal}"></div>
       <button class="btn btn-primary btn-sm" id="pf-save">Güncelle</button>
     </div>
-    ${isRemote ? '' : `
+    ${isRemote ? `
     <div class="card">
-      <div class="section-title">Demo Data</div>
+      <div class="section-title">Verilerimi Sıfırla</div>
+      <p class="sub" style="margin-top:-4px;">Kilo, öğün, egzersiz ve check-in geçmişini tamamen siler ve seni tekrar onboarding'e götürür. Bu işlem sadece kendi verini siler, ${esc(getUser(s, otherOf(s.currentUser)).name)}'nin verisi etkilenmez. Geri alınamaz.</p>
+      <button class="btn btn-outline btn-sm" id="pf-hard-reset" style="margin-top:10px;color:#a3453a;border-color:#a3453a;">Verilerimi Sıfırla</button>
+    </div>` : `
+    <div class="card">
+      <div class="section-title">Demo Verisi</div>
       <p class="sub" style="margin-top:-4px;">Bu bir yerel demo modudur; veriler yalnızca bu tarayıcıda, localStorage üzerinde tutulur.</p>
       <button class="btn btn-outline btn-sm" id="pf-reseed" style="margin-bottom:8px;">Demo Verisini Yenile</button>
       <button class="btn btn-outline btn-sm" id="pf-reset">Sıfırla ve Onboarding'i Göster</button>
@@ -1476,6 +1673,17 @@ function wireProfile() {
   if (hardReset) hardReset.addEventListener('click', () => { Store.hardReset(); App.route = 'home'; render(); });
   const logout = document.getElementById('pf-logout');
   if (logout) logout.addEventListener('click', () => Store.logout());
+
+  const remoteReset = document.getElementById('pf-hard-reset');
+  if (remoteReset) remoteReset.addEventListener('click', async () => {
+    if (!confirm('Emin misin? Tüm kilo, öğün, egzersiz ve check-in geçmişin kalıcı olarak silinecek.')) return;
+    try {
+      await runChange(st => { const u = getUser(st, st.currentUser); st.users[st.currentUser] = blankUser(u.name, null, null); st.onboarded[st.currentUser] = false; }, 'RESET_MY_DATA', {});
+    } catch (e) { toast('Sıfırlanamadı: ' + e.message); return; }
+    App.route = 'home';
+    render();
+    toast('Verilerin sıfırlandı.');
+  });
 }
 
 /* ---------------------------------------------------------------------
