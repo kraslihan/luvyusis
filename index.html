@@ -27,14 +27,21 @@
     --radius-sm:11px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;}
-  html{overflow-y:scroll;scrollbar-gutter:stable;}
+  html,body{margin:0;padding:0;height:100%;}
+  /* Lock the OUTER page so it can never scroll as a whole — iOS Safari's
+     100vh includes the area behind its retracting address bar, which used
+     to make the whole document taller than the visible screen and let the
+     browser scroll the header/nav out of view. Only #view-container (the
+     middle content area) is allowed to scroll; html/body never do. */
+  html{overflow:hidden;}
   body{
+    overflow:hidden;
     background:var(--bg);
     color:var(--ink);
     font-family:'Nunito',-apple-system,BlinkMacSystemFont,sans-serif;
     line-height:1.45;
     -webkit-font-smoothing:antialiased;
+    overscroll-behavior:none;
   }
   .num{font-family:'Space Mono','Courier New',monospace;font-variant-numeric:tabular-nums;}
   button{font-family:inherit;cursor:pointer;}
@@ -45,7 +52,11 @@
   #app-shell{
     max-width:460px;
     margin:0 auto;
+    /* 100vh first as a safe fallback for very old browsers, then 100dvh
+       (dynamic viewport height) which correctly excludes the iOS Safari
+       address bar / home indicator chrome — modern rule wins when supported. */
     height:100vh;
+    height:100dvh;
     background:var(--bg);
     position:relative;
     display:flex;
@@ -53,24 +64,36 @@
     overflow:hidden;
   }
   @media (min-width:520px){
-    body{ background:#e9e3d3; display:flex; justify-content:center; }
+    html,body{overflow:auto;height:auto;}
+    html{overflow-y:scroll;scrollbar-gutter:stable;}
+    body{ background:#e9e3d3; display:flex; justify-content:center; overscroll-behavior:auto; }
     #app-shell{
       margin:20px auto;
       height:calc(100vh - 40px);
+      height:calc(100dvh - 40px);
       border-radius:32px;
       box-shadow:0 30px 60px -30px rgba(44,42,34,0.35), 0 0 0 1px rgba(44,42,34,0.06);
     }
   }
 
   /* Header and bottom nav are siblings of the scrolling container, so they
-     never move — only #view-container scrolls when content overflows. */
-  #top-bar-holder{flex:none;padding:18px 18px 0;background:var(--bg);position:relative;z-index:5;}
+     never move — only #view-container scrolls when content overflows.
+     Compact padding + safe-area insets keep them out of the iPhone notch
+     and home-indicator area without eating extra vertical space. */
+  #top-bar-holder{
+    flex:none;
+    padding:calc(10px + env(safe-area-inset-top)) 18px 0;
+    background:var(--bg);
+    position:relative;
+    z-index:5;
+  }
   #view-container{
     flex:1 1 auto;
     min-height:0;
-    padding:10px 18px 24px;
+    padding:10px 18px 16px;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
   }
   #bottom-nav-holder{flex:none;}
 
