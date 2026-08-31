@@ -25,6 +25,19 @@
     --radius-lg:22px;
     --radius-md:16px;
     --radius-sm:11px;
+    /* ---- future-proofing aliases: same underlying values, new names ----
+       CSS custom properties resolve at used-value time, so when a
+       [data-theme] block below overrides --accent/--bad/etc, everything
+       that references --primary/--danger/etc automatically follows,
+       without needing to redefine these aliases per theme. */
+    --surface-soft:var(--surface-2);
+    --text:var(--ink);
+    --text-muted:var(--ink-dim);
+    --primary:var(--accent);
+    --primary-hover:var(--accent-strong);
+    --primary-soft:var(--accent-soft);
+    --input-bg:var(--surface-2);
+    --danger:var(--bad);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;height:100%;}
@@ -76,31 +89,55 @@
     }
   }
 
-  /* Bottom nav is a sibling of the scrolling container, so it never moves —
-     only #view-container scrolls when content overflows. There is no
-     separate header bar; safe-area-inset-top is applied directly to the
-     scroll container's top padding so content clears the iPhone notch. */
+  /* --- Mobile app shell: 3 fixed flex regions, exactly one scrolls ---
+     #app-shell is a column flexbox pinned to the true visual viewport
+     (100dvh). #top-bar-holder and #bottom-nav-holder are flex:none, so
+     their height is whatever their content needs and they NEVER move.
+     #view-container is the only flex:1 child, so it alone absorbs all
+     remaining space and is the only element that scrolls. This one
+     mechanism is shared by every page — pages only ever render into
+     #view-container, never into the header or nav regions. */
+  #top-bar-holder{
+    flex:none;
+    padding:calc(6px + env(safe-area-inset-top)) 18px 6px;
+    background:var(--bg);
+    position:relative;
+    z-index:5;
+    border-bottom:1px solid transparent; /* reserves a hairline without shifting layout when content changes */
+    min-width:0;
+  }
   #view-container{
     flex:1 1 auto;
     min-height:0;
     min-width:0;
-    padding:calc(14px + env(safe-area-inset-top)) 18px 16px;
+    padding:12px 18px 16px;
     overflow-y:auto;
-    overflow-x:hidden;
+    overflow-x:hidden; /* defensive backstop only — real overflow sources below are fixed at the source */
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
   }
   /* Grid/flex children default to min-width:auto, which lets a wide native
      control (date picker, tabular numbers) push its column past 1fr and
      force the whole page to feel horizontally scrollable. Force them to
-     shrink to their column instead of overflowing it. */
-  .grid-2 > *, .grid-3 > *, .weight-input-row > *{ min-width:0; }
+     shrink to their column instead of overflowing it. This is the actual
+     fix (not just the overflow-x:hidden backstop above) — every flex/grid
+     container in this file that can hold a wide child gets min-width:0 on
+     its children, and every card/input caps at max-width:100%. */
+  .grid-2 > *, .grid-3 > *, .weight-input-row > *, .row > *, .stack > *,
+  .theme-grid > *, .streak-row > *{ min-width:0; }
   .field, .field *{ max-width:100%; }
-  #bottom-nav-holder{flex:none;}
+  .card, .list-item, .sticky-note, .song-card, .mini-stat, .streak-card, .stat-line{ max-width:100%; }
+  #bottom-nav-holder{flex:none;min-width:0;}
+  .top-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px;min-width:0;}
+  .top-bar > div{min-width:0;}
+  .top-bar h1{font-size:18px;font-weight:800;margin:0;line-height:1.2;}
+  .top-bar .sub{font-size:12px;color:var(--ink-dim);line-height:1.3;margin-top:1px;}
+  .back-header{background:none;border:none;color:var(--text-muted);font-weight:800;font-size:12.5px;padding:2px 0 3px;margin:0;min-height:28px;}
+  .back-header:active{color:var(--primary);}
 
   /* ---------- top bar ---------- */
   .user-toggle{
-    display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px;
+    display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px;flex:none;
   }
   .user-toggle button{
     border:none;background:transparent;padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:700;color:var(--ink-dim);
@@ -108,11 +145,11 @@
   .user-toggle button.active{background:var(--accent);color:#fff;}
 
   /* ---------- generic cards / layout ---------- */
-  .card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:18px;margin-bottom:14px;}
-  .card.tight{padding:14px 16px;}
+  .card{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:15px 16px;margin-bottom:11px;width:100%;}
+  .card.tight{padding:12px 14px;}
   .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-dim);font-weight:800;margin:0 0 12px;}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-  .stack{display:flex;flex-direction:column;gap:10px;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;}
+  .stack{display:flex;flex-direction:column;gap:10px;min-width:0;}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
 
@@ -128,11 +165,11 @@
   .btn-sm{padding:9px 14px;font-size:13.5px;min-height:38px;width:auto;}
   .btn-danger-ghost{background:transparent;color:var(--bad);font-weight:700;min-height:auto;padding:6px 8px;width:auto;}
 
-  .field{margin-bottom:14px;}
+  .field{margin-bottom:11px;min-width:0;}
   .field label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-dim);margin-bottom:6px;}
   .field input[type=number], .field input[type=date], .field input[type=text], .field input[type=time], .field textarea, .field select{
     width:100%;padding:12px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);
-    background:var(--surface-2);color:var(--ink);font-size:15px;min-height:46px;
+    background:var(--input-bg);color:var(--text);font-size:15px;min-height:46px;max-width:100%;
   }
   .field textarea{resize:vertical;min-height:64px;font-family:inherit;}
   .field input:focus, .field textarea:focus, .field select:focus, button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
@@ -144,9 +181,13 @@
   .pill-neutral{background:var(--surface-2);color:var(--ink-dim);}
 
   .empty-state{
-    text-align:center;color:var(--ink-dim);font-size:13.5px;padding:26px 10px;
+    text-align:center;color:var(--ink-dim);font-size:13px;padding:14px 10px;
     background:var(--surface-2);border-radius:var(--radius-md);
   }
+
+  /* compact single-line stat row for Bugün */
+  .stat-line{display:flex;align-items:center;justify-content:space-between;gap:6px;background:var(--surface);border-radius:var(--radius-md);padding:11px 14px;box-shadow:var(--shadow);font-size:13px;font-weight:800;margin-bottom:12px;flex-wrap:wrap;}
+  .stat-line span{white-space:nowrap;}
 
   /* ---------- bottom nav ---------- */
   .bottom-nav{
@@ -156,17 +197,19 @@
     display:flex;
     padding:8px 6px calc(8px + env(safe-area-inset-bottom));
     z-index:20;
+    min-width:0;
   }
   .nav-item{
-    flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    background:none;border:none;color:var(--ink-dim);padding:6px 2px;border-radius:14px;
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    background:none;border:none;color:var(--ink-dim);padding:7px 2px;border-radius:14px;min-height:44px;min-width:0;
   }
-  .nav-item .ico{font-size:20px;line-height:1;}
-  .nav-item .lbl{font-size:10.5px;font-weight:700;}
-  .nav-item.active{color:var(--accent-strong);}
-  .nav-item.active .ico{transform:scale(1.08);}
+  .nav-item .ico{line-height:1;display:flex;align-items:center;justify-content:center;}
+  .nav-item .ico svg{display:block;width:20px;height:20px;}
+  .nav-item .lbl{font-size:10.5px;font-weight:700;white-space:nowrap;}
+  .nav-item.active{color:var(--primary-hover);background:var(--primary-soft);font-weight:800;}
+  .nav-item.active .ico{transform:scale(1.06);}
 
-  /* ---------- home ---------- */
+  /* ---------- streak / mini stat ---------- */
   .streak-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;}
   .streak-card{background:linear-gradient(160deg,var(--gold-soft),var(--surface));border-radius:var(--radius-lg);padding:16px;text-align:center;box-shadow:var(--shadow);}
   .streak-card .n{font-size:30px;font-weight:800;color:var(--gold);}
@@ -174,9 +217,9 @@
   .streak-card.together .n{color:var(--accent-strong);}
   .streak-card .lbl{font-size:11.5px;color:var(--ink-dim);font-weight:700;margin-top:2px;}
 
-  .mini-stat{background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow);}
+  .mini-stat{background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow);min-width:0;}
   .mini-stat .lbl{font-size:11px;color:var(--ink-dim);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
-  .mini-stat .val{font-size:18px;font-weight:800;margin-top:2px;}
+  .mini-stat .val{font-size:18px;font-weight:800;margin-top:2px;overflow-wrap:break-word;}
 
   .partner-strip{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;box-shadow:var(--shadow);margin-bottom:14px;}
   .partner-strip .dot{width:10px;height:10px;border-radius:50%;flex:none;}
@@ -185,18 +228,19 @@
 
   /* ---------- today sections ---------- */
   .weight-input-row{display:flex;gap:10px;align-items:flex-end;}
-  .weight-input-row .field{flex:1;margin-bottom:0;}
+  .weight-input-row .field{flex:1;margin-bottom:0;min-width:0;}
 
   .water-row{display:flex;align-items:center;justify-content:center;gap:16px;padding:6px 0;}
   .water-row .glasses{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:200px;}
-  .glass{width:18px;height:22px;border:2px solid var(--accent);border-top:none;border-radius:0 0 5px 5px;background:transparent;}
+  .glass{width:18px;height:22px;border:2px solid var(--accent);border-top:none;border-radius:0 0 5px 5px;background:transparent;flex:none;}
   .glass.filled{background:var(--accent);}
-  .stepbtn{width:44px;height:44px;border-radius:50%;border:none;background:var(--accent-soft);color:var(--accent-strong);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .stepbtn{width:44px;height:44px;border-radius:50%;border:none;background:var(--accent-soft);color:var(--accent-strong);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
   .stepbtn:active{background:var(--accent);color:#fff;}
 
   .list-item{border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;background:var(--surface);}
-  .list-item .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
-  .list-item .meta{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+  .list-item .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-width:0;}
+  .list-item .top-row > div:first-child{min-width:0;}
+  .list-item .meta{font-size:12px;color:var(--ink-dim);margin-top:2px;overflow-wrap:break-word;}
   .list-item img.photo{width:100%;border-radius:var(--radius-sm);margin-top:8px;max-height:160px;object-fit:cover;}
   .meal-form, .exercise-form{background:var(--surface-2);border-radius:var(--radius-md);padding:14px;margin-bottom:14px;}
   .estimate-box{background:var(--gold-soft);border-radius:var(--radius-sm);padding:10px 12px;margin-top:10px;font-size:13px;}
@@ -204,8 +248,8 @@
   .file-drop{border:1.5px dashed var(--border);border-radius:var(--radius-sm);padding:14px;text-align:center;font-size:13px;color:var(--ink-dim);background:var(--surface);}
 
   /* ---------- progress / together charts ---------- */
-  .chart-wrap{position:relative;height:180px;margin-top:8px;}
-  .legend-row{display:flex;gap:14px;font-size:12px;color:var(--ink-dim);margin-top:8px;}
+  .chart-wrap{position:relative;height:180px;margin-top:8px;width:100%;}
+  .legend-row{display:flex;gap:14px;font-size:12px;color:var(--ink-dim);margin-top:8px;flex-wrap:wrap;}
   .legend-dot{width:9px;height:9px;border-radius:3px;display:inline-block;margin-right:5px;}
 
   /* ---------- shared: notes / songs / wishlist / feed ---------- */
@@ -214,29 +258,78 @@
     box-shadow:0 4px 10px -6px rgba(44,42,34,0.25);
   }
   .sticky-note.from-me{background:var(--accent-soft);}
-  .sticky-note .txt{font-size:14.5px;font-weight:700;}
+  .sticky-note .txt{font-size:14.5px;font-weight:700;overflow-wrap:break-word;}
   .sticky-note .meta{font-size:11px;color:var(--ink-dim);margin-top:6px;}
-  .reactions{display:flex;gap:6px;margin-top:8px;}
+  .reactions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   .reactions button{background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:13px;display:flex;gap:4px;align-items:center;}
   .reactions button .c{font-size:11px;color:var(--ink-dim);font-weight:700;}
 
   .song-card{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow);}
-  .song-card .note{font-size:12.5px;color:var(--ink-dim);}
-  .song-emoji{font-size:22px;}
+  .song-card .note{font-size:12.5px;color:var(--ink-dim);overflow-wrap:break-word;}
+  .song-card > div{min-width:0;}
+  .song-emoji{font-size:22px;flex:none;}
 
   .wishlist-row{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--border);}
   .wishlist-row:last-child{border-bottom:none;}
   .wishlist-row .check{width:24px;height:24px;border-radius:8px;border:2px solid var(--accent);flex:none;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
   .wishlist-row .check.done{background:var(--accent);}
-  .wishlist-row .txt{flex:1;font-size:14.5px;}
+  .wishlist-row .txt{flex:1;font-size:14.5px;min-width:0;overflow-wrap:break-word;}
   .wishlist-row .txt.done{text-decoration:line-through;color:var(--ink-dim);}
 
-  .feed-row{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;font-size:13.5px;}
+  .feed-row{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;font-size:13.5px;flex-wrap:wrap;}
   .feed-row .t{font-size:11px;color:var(--ink-dim);white-space:nowrap;margin-left:auto;padding-top:1px;}
 
   .tabs{display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:999px;margin-bottom:16px;overflow-x:auto;}
-  .tabs button{border:none;background:transparent;padding:9px 14px;border-radius:999px;font-size:12.5px;font-weight:800;color:var(--ink-dim);white-space:nowrap;}
+  .tabs button{border:none;background:transparent;padding:9px 14px;border-radius:999px;font-size:12.5px;font-weight:800;color:var(--ink-dim);white-space:nowrap;flex:none;}
   .tabs button.active{background:var(--surface);color:var(--accent-strong);box-shadow:var(--shadow);}
+
+  /* ---------- lightweight list rows (not cards) — settings, feature entries ---------- */
+  .settings-list, .feature-list{display:flex;flex-direction:column;}
+  .settings-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:13px 2px;border-bottom:1px solid var(--border);font-size:14.5px;font-weight:700;
+    background:none;border-left:none;border-right:none;border-top:none;color:var(--text);text-align:left;width:100%;
+  }
+  .settings-list .settings-row:last-child{border-bottom:none;}
+  .settings-row .chev{color:var(--text-muted);flex:none;}
+  .settings-row:active{background:var(--surface-soft);}
+
+  .feature-row{
+    display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--border);
+    background:none;border-left:none;border-right:none;border-top:none;text-align:left;width:100%;color:var(--text);
+  }
+  .feature-list .feature-row:last-child{border-bottom:none;}
+  .feature-row .ico{width:36px;height:36px;border-radius:11px;background:var(--primary-soft);display:flex;align-items:center;justify-content:center;font-size:17px;flex:none;}
+  .feature-row .body{flex:1;min-width:0;}
+  .feature-row .title{font-weight:800;font-size:14px;display:block;}
+  .feature-row .desc{font-size:11.5px;color:var(--text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .feature-row .chev{color:var(--text-muted);flex:none;}
+  .feature-row:active{background:var(--surface-soft);}
+
+  /* ---------- simple label/value rows for compact summaries ---------- */
+  .kv-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;font-size:13.5px;}
+  .kv-row .k{color:var(--text-muted);min-width:0;}
+  .kv-row .v{font-weight:800;flex:none;}
+
+  /* ---------- theme preview cards ---------- */
+  .theme-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .theme-card{background:var(--surface);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow);border:2px solid transparent;text-align:left;width:100%;}
+  .theme-card.active{border-color:var(--primary);}
+  .theme-card .emoji{font-size:22px;line-height:1;}
+  .theme-card .name{font-weight:800;font-size:13px;margin-top:7px;line-height:1.25;}
+  .theme-card .sub{font-size:11px;color:var(--text-muted);margin-top:1px;}
+  .theme-card .swatches{display:flex;gap:5px;margin-top:9px;}
+  .theme-card .sw{width:15px;height:15px;border-radius:50%;border:1px solid rgba(0,0,0,0.08);flex:none;}
+  .theme-card .active-badge{margin-top:8px;font-size:11px;font-weight:800;color:var(--primary-hover);}
+
+  /* ---------- modal ---------- */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,18,14,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:24px;}
+  .modal-overlay[hidden]{display:none;}
+  .modal-box{background:var(--surface);border-radius:var(--radius-lg);padding:20px;max-width:340px;width:100%;box-shadow:var(--shadow);}
+  .modal-box h3{margin:0 0 8px;font-size:16px;}
+  .modal-box p{margin:0 0 16px;font-size:13.5px;color:var(--text-muted);}
+  .modal-actions{display:flex;gap:10px;}
+  .modal-actions .btn{padding:12px 14px;font-size:13.5px;min-height:44px;}
 
   /* ---------- onboarding ---------- */
   .onboard-wrap{padding:40px 22px 40px;text-align:center;}
@@ -251,18 +344,73 @@
     position:fixed;left:50%;bottom:96px;transform:translate(-50%,10px);
     background:var(--ink);color:#fff;padding:10px 18px;border-radius:999px;font-size:13px;font-weight:700;
     opacity:0;pointer-events:none;transition:opacity .2s, transform .2s;z-index:50;
+    max-width:80vw;text-align:center;
   }
   .toast.show{opacity:1;transform:translate(-50%,0);}
 
   ::-webkit-scrollbar{display:none;}
+
+  /* =========================================================================
+     THEMES — each block only redefines the EXISTING custom properties
+     already threaded through every rule above. The `default` theme (no
+     data-theme attribute, or data-theme="default") is the :root block
+     above, byte-for-byte unchanged.
+     ========================================================================= */
+  [data-theme="cloud"]{
+    --bg:#F4F8FB;
+    --surface:#FFFFFF;
+    --surface-2:#E5F0F7;
+    --ink:#33434C;
+    --ink-dim:#7D8C96;
+    --accent:#79AFC8;
+    --accent-strong:#5C93AD;
+    --accent-soft:#DCECF4;
+    --gold:#e0a857;
+    --gold-soft:#f2e6d3;
+    --bad:#d98a76;
+    --bad-soft:#f5ded6;
+    --border:rgba(51,67,76,0.14);
+  }
+  [data-theme="witchy"]{
+    --bg:#F4EFF7;
+    --surface:#FBF8FC;
+    --surface-2:#EEE4F0;
+    --ink:#382E3D;
+    --ink-dim:#87788B;
+    --accent:#77558C;
+    --accent-strong:#5E426F;
+    --accent-soft:#E5D9EA;
+    --gold:#9c7a53;
+    --gold-soft:#ece1d1;
+    --bad:#a9605f;
+    --bad-soft:#f0dcda;
+    --border:rgba(56,46,61,0.14);
+  }
+  [data-theme="frog-royalty"]{
+    --bg:#F6F7EF;
+    --surface:#FFFCFA;
+    --surface-2:#DFECD9;
+    --ink:#39463B;
+    --ink-dim:#817A73;
+    --accent:#79A989;
+    --accent-strong:#5E8A6E;
+    --accent-soft:#DFECD9;
+    --gold:#D89BB1;
+    --gold-soft:#F4DCE4;
+    --bad:#c07567;
+    --bad-soft:#f2ddd7;
+    --border:rgba(57,70,59,0.14);
+  }
 </style>
 </head>
 <body>
 <div id="app-shell">
+  <div id="top-bar-holder"></div>
   <div id="view-container"></div>
   <div id="bottom-nav-holder"></div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="modal-overlay" id="modal-overlay" hidden><div class="modal-box" id="modal-box"></div></div>
 
 <script>
 /* =========================================================================
@@ -288,14 +436,68 @@ const TOKEN_KEY = 'together-access-token';
 const MEAL_TYPES = ['Kahvaltı', 'Öğle Yemeği', 'Akşam Yemeği', 'Atıştırmalık', 'Diğer'];
 const EXERCISE_TYPES = ['Yürüyüş', 'Pilates', 'Spor Salonu', 'Koşu', 'Bisiklet', 'Yoga', 'Diğer'];
 const REACTIONS = ['❤️', '😂', '🔥', '🌱'];
+
+/* Bottom nav: exactly 4 tabs. Icons are small hand-rolled inline SVGs
+   (consistent 2px stroke, 24x24 viewbox) — no icon library dependency. */
+const ICONS = {
+  calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3.5 10h17"/><path d="M9 15l2 2 4-4.5"/></svg>',
+  trending: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6.5 4 4L21 6"/><path d="M15 6h6v6"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="8" r="3"/><circle cx="16.2" cy="9.2" r="2.4"/><path d="M2.5 20c0-3.6 2.7-6.2 6-6.2s6 2.6 6 6.2"/><path d="M14.8 20c0-2.6 1.7-4.7 3.9-5.4"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10.2" r="3.2"/><path d="M6.2 19a6 6 0 0111.6 0"/></svg>',
+};
 const NAV_ITEMS = [
-  { id: 'home', label: 'Anasayfa', icon: '🏡' },
-  { id: 'today', label: 'Bugün', icon: '📝' },
-  { id: 'progress', label: 'İlerleme', icon: '📈' },
-  { id: 'together', label: 'Birlikte', icon: '🌿' },
-  { id: 'profile', label: 'Profil', icon: '👤' },
+  { id: 'today', label: 'Bugün', icon: 'calendar' },
+  { id: 'progress', label: 'İlerleme', icon: 'trending' },
+  { id: 'together', label: 'Birlikte', icon: 'users' },
+  { id: 'profile', label: 'Ben', icon: 'user' },
 ];
-const TITLE_MAP = { home: 'Anasayfa', today: 'Bugün', progress: 'İlerleme', together: 'Birlikte', profile: 'Profil' };
+const TITLE_MAP = { today: 'Bugün', progress: 'İlerleme', together: 'Birlikte', profile: 'Ben' };
+
+/* Sub-screens ("detail" views) — each belongs to a parent tab, is reached
+   via App.subRoute, and shows a "‹ Parent" back-header instead of the
+   normal tab header. See SUBROUTE_META below and section 7 (router). */
+const SUBROUTE_META = {
+  'progress-history': { parent: 'progress', parentLabel: 'İlerleme', title: 'Tüm Geçmiş' },
+  'together-progress': { parent: 'together', parentLabel: 'Birlikte', title: 'Kilo' },
+  'together-notes': { parent: 'together', parentLabel: 'Birlikte', title: 'Notlar' },
+  'together-songs': { parent: 'together', parentLabel: 'Birlikte', title: 'Şarkılar' },
+  'together-wishlist': { parent: 'together', parentLabel: 'Birlikte', title: 'Dilek Listesi' },
+  'together-feed': { parent: 'together', parentLabel: 'Birlikte', title: 'Aktivite Akışı' },
+  'me-goals': { parent: 'profile', parentLabel: 'Ben', title: 'Hedeflerim' },
+  'me-account': { parent: 'profile', parentLabel: 'Ben', title: 'Hesap' },
+  'me-data': { parent: 'profile', parentLabel: 'Ben', title: 'Veri Yönetimi' },
+  'me-appearance': { parent: 'profile', parentLabel: 'Ben', title: 'Görünüm & Tema' },
+};
+
+/* Conceptual URL hierarchy, reflected into location.hash for refresh- and
+   back-button-friendliness. Not a real router — App.route/App.subRoute is
+   still the single source of truth; the hash is a mirror of it. */
+const ROUTE_TO_PATH = { today: 'today', progress: 'progress', together: 'together', profile: 'me' };
+const PATH_TO_ROUTE = { today: 'today', progress: 'progress', together: 'together', me: 'profile' };
+const SUBROUTE_TO_PATH = {
+  'progress-history': 'progress/history',
+  'together-progress': 'together/progress',
+  'together-notes': 'together/notes',
+  'together-songs': 'together/songs',
+  'together-wishlist': 'together/wishlist',
+  'together-feed': 'together/feed',
+  'me-goals': 'me/goals',
+  'me-account': 'me/account',
+  'me-data': 'me/data',
+  'me-appearance': 'me/appearance',
+};
+const PATH_TO_SUBROUTE = {};
+Object.keys(SUBROUTE_TO_PATH).forEach(k => { PATH_TO_SUBROUTE[SUBROUTE_TO_PATH[k]] = k; });
+
+/* Exactly 4 themes, each with a stable internal key distinct from its
+   display name (so renaming the display name later never touches saved
+   data). `default` is the original cream/soft-green look. */
+const THEMES = [
+  { key: 'default', emoji: '🌿', name: 'Klasik', subtitle: 'Varsayılan', swatches: ['#f6f1e6', '#ffffff', '#7fa887', '#e0a857'] },
+  { key: 'cloud', emoji: '☁️', name: 'Delusionally Productive', subtitle: 'Cloud', swatches: ['#F4F8FB', '#FFFFFF', '#79AFC8', '#DCECF4'] },
+  { key: 'witchy', emoji: '🔮', name: 'Hex & Chill', subtitle: 'Witchy', swatches: ['#F4EFF7', '#FBF8FC', '#77558C', '#E5D9EA'] },
+  { key: 'frog-royalty', emoji: '🐸', name: 'Princess Kwaak', subtitle: 'Frog Royalty', swatches: ['#F6F7EF', '#FFFCFA', '#79A989', '#E8B8C8'] },
+];
 
 /* MET (metabolik eşdeğer) tablosu — egzersizde yakılan tahmini kaloriyi
    hesaplamak için: kcal = MET * kilo(kg) * süre(saat). Kişinin kendi
@@ -385,7 +587,7 @@ function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toS
    this same shape server-side, see lib/domain.js.)
    --------------------------------------------------------------------- */
 function blankUser(name, startWeight, goalWeight) {
-  return { name, setup: { startWeight, goalWeight, targetDate: null, waterGoal: 8, exerciseGoal: 3, startDate: todayKey() }, days: {} };
+  return { name, setup: { startWeight, goalWeight, targetDate: null, waterGoal: 8, exerciseGoal: 3, startDate: todayKey() }, days: {}, theme: 'default' };
 }
 function blankDay() { return { checkin: false, weight: null, water: 0, meals: [], exercises: [], note: '' }; }
 function blankState() {
@@ -560,6 +762,37 @@ function markCheckin(s, uKey) {
     }
   }
 }
+/* Real, non-fabricated weekly summary — only counts what user.days already
+   records. Week = Monday..today (never invents future days). */
+function startOfWeekKey(key) {
+  const d = keyToDate(key);
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  const diff = dow === 0 ? 6 : dow - 1;
+  d.setDate(d.getDate() - diff);
+  return dateKey(d);
+}
+function thisWeekKeys() {
+  const start = startOfWeekKey(todayKey());
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const k = keyMinusDays(start, -i);
+    if (k <= todayKey()) out.push(k);
+  }
+  return out;
+}
+function weeklySummary(user) {
+  const keys = thisWeekKeys();
+  let checkinDays = 0, waterMet = 0, exerciseCount = 0, mealCount = 0;
+  keys.forEach(k => {
+    const d = user.days[k];
+    if (!d) return;
+    if (d.checkin) checkinDays++;
+    if (d.water >= user.setup.waterGoal) waterMet++;
+    exerciseCount += d.exercises.length;
+    mealCount += d.meals.length;
+  });
+  return { checkinDays, waterMet, exerciseCount, mealCount, totalDays: keys.length };
+}
 /** Partner-facing computed fields — same shape whether they come from the
  *  server (remote mode) or are computed locally (local demo mode). Never
  *  reads raw weight numbers for anyone but the current user. */
@@ -696,7 +929,7 @@ async function runChange(localMutator, type, payload) {
 }
 
 /* ---------------------------------------------------------------------
-   6. TOAST
+   6. TOAST / MODAL
    --------------------------------------------------------------------- */
 let toastTimer = null;
 function toast(msg) {
@@ -707,26 +940,105 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
 }
 
+/** Generic in-app confirm/alert modal — used instead of window.confirm() so
+ *  the copy and buttons are fully controlled and consistently styled.
+ *  opts = { title, body, buttons: [{ label, cls, danger, onClick }] } */
+function openModal(opts) {
+  const overlay = document.getElementById('modal-overlay');
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <h3>${esc(opts.title)}</h3>
+    <p>${esc(opts.body)}</p>
+    <div class="modal-actions">
+      ${opts.buttons.map((b, i) => `<button class="btn ${b.cls || 'btn-outline'}" data-mbtn="${i}" style="${b.danger ? 'background:var(--danger);color:#fff;' : ''}">${esc(b.label)}</button>`).join('')}
+    </div>`;
+  overlay.hidden = false;
+  opts.buttons.forEach((b, i) => {
+    const btn = box.querySelector(`[data-mbtn="${i}"]`);
+    if (btn) btn.addEventListener('click', b.onClick);
+  });
+}
+function closeModal() {
+  document.getElementById('modal-overlay').hidden = true;
+}
+
 /* ---------------------------------------------------------------------
    7. APP / ROUTER
+   App.route is one of the 4 bottom-nav tabs. App.subRoute (nullable) is a
+   "detail screen" beneath the current tab (see SUBROUTE_META) — it is
+   cleared whenever a main tab is tapped, and reflected into location.hash
+   so a refresh or the browser back button doesn't always dump the user
+   back to the default tab.
    --------------------------------------------------------------------- */
-const App = { route: 'home', charts: {}, togetherTab: 'status', gateError: '' };
+const App = { route: 'today', subRoute: null, progressRange: '30', charts: {}, gateError: '' };
+
+function pushHash() {
+  try {
+    const path = App.subRoute ? SUBROUTE_TO_PATH[App.subRoute] : ROUTE_TO_PATH[App.route];
+    const newHash = '#/' + path;
+    if (location.hash !== newHash) history.pushState(null, '', newHash);
+  } catch (e) { /* ignore (e.g. sandboxed iframe) */ }
+}
+function applyHashToApp() {
+  try {
+    const h = (location.hash || '').replace(/^#\/?/, '');
+    if (!h) return;
+    if (PATH_TO_SUBROUTE[h]) {
+      const sub = PATH_TO_SUBROUTE[h];
+      App.subRoute = sub;
+      App.route = SUBROUTE_META[sub].parent;
+      return;
+    }
+    if (PATH_TO_ROUTE[h]) {
+      App.route = PATH_TO_ROUTE[h];
+      App.subRoute = null;
+    }
+  } catch (e) { /* ignore */ }
+}
+function navigateTo(route, subRoute) {
+  App.route = route;
+  App.subRoute = subRoute || null;
+  pushHash();
+  render();
+}
+function goBack() {
+  App.subRoute = null;
+  pushHash();
+  render();
+}
+window.addEventListener('popstate', () => {
+  if (Store.mode() === 'gate' || Store.mode() === null) return;
+  const s = Store.get();
+  if (!s || !s.onboarded[s.currentUser]) return;
+  applyHashToApp();
+  render();
+});
+
+function applyTheme(theme) {
+  try { document.documentElement.setAttribute('data-theme', theme || 'default'); } catch (e) { /* ignore */ }
+}
 
 function render() {
   const container = document.getElementById('view-container');
   const navHolder = document.getElementById('bottom-nav-holder');
+  const topHolder = document.getElementById('top-bar-holder');
 
   if (Store.mode() === 'gate') {
+    applyTheme('default');
     container.innerHTML = renderGate();
     navHolder.innerHTML = '';
+    topHolder.innerHTML = '';
     wireGate();
     return;
   }
 
   const s = Store.get();
+  applyTheme(s.users[s.currentUser] ? s.users[s.currentUser].theme : 'default');
+
   if (!s.onboarded[s.currentUser]) {
     container.innerHTML = renderOnboarding(s);
     navHolder.innerHTML = '';
+    topHolder.innerHTML = '';
     wireOnboarding();
     return;
   }
@@ -734,26 +1046,65 @@ function render() {
   navHolder.innerHTML = renderBottomNav();
   wireBottomNav();
 
+  topHolder.innerHTML = renderTopBar(s);
+  wireTopBar();
+
   let html = '';
-  switch (App.route) {
-    case 'today': html = renderToday(s); break;
-    case 'progress': html = renderProgress(s); break;
-    case 'together': html = renderTogether(s); break;
-    case 'profile': html = renderProfile(s); break;
-    default: html = renderHome(s);
+  if (App.subRoute) {
+    html = renderSubRoute(s, App.subRoute);
+  } else {
+    switch (App.route) {
+      case 'today': html = renderToday(s); break;
+      case 'progress': html = renderProgress(s); break;
+      case 'together': html = renderTogether(s); break;
+      case 'profile': html = renderProfileMain(s); break;
+      default: html = renderToday(s);
+    }
   }
   container.innerHTML = html;
   container.scrollTop = 0;
 
-  if (App.route === 'today') wireToday();
-  if (App.route === 'progress') wireProgress();
-  if (App.route === 'together') wireTogether();
-  if (App.route === 'profile') wireProfile();
-  if (App.route === 'home') wireHome();
+  if (App.subRoute) {
+    wireSubRoute(App.subRoute);
+  } else {
+    if (App.route === 'today') wireToday();
+    if (App.route === 'progress') wireProgress();
+    if (App.route === 'together') wireTogetherMain();
+    if (App.route === 'profile') wireProfileMain();
+  }
+}
+
+function renderSubRoute(s, sub) {
+  switch (sub) {
+    case 'progress-history': return renderProgressHistory(s);
+    case 'together-progress': return renderTogetherProgress(s);
+    case 'together-notes': return renderSharedNotes(s);
+    case 'together-songs': return renderSongs(s);
+    case 'together-wishlist': return renderWishlist(s);
+    case 'together-feed': return renderActivityFeed(s);
+    case 'me-goals': return renderMeGoals(s);
+    case 'me-account': return renderMeAccount(s);
+    case 'me-data': return renderMeData(s);
+    case 'me-appearance': return renderMeAppearance(s);
+    default: return '';
+  }
+}
+function wireSubRoute(sub) {
+  if (sub === 'progress-history') wireProgressHistory();
+  else if (sub === 'together-progress') wireTogetherChart();
+  else if (sub === 'together-notes') wireSharedNotes();
+  else if (sub === 'together-songs') wireSongs();
+  else if (sub === 'together-wishlist') wireWishlist();
+  else if (sub === 'me-goals') wireMeGoals();
+  else if (sub === 'me-account') wireMeAccount();
+  else if (sub === 'me-data') wireMeData();
+  else if (sub === 'me-appearance') wireMeAppearance();
+  // 'together-feed' has no interactive elements
 }
 
 /* ---------------------------------------------------------------------
    8. ACCESS GATE (remote mode only — shown when no valid token yet)
+   Renders OUTSIDE the tab/header system entirely — unchanged from before.
    --------------------------------------------------------------------- */
 function renderGate() {
   return `
@@ -782,22 +1133,69 @@ function wireGate() {
 }
 
 /* ---------------------------------------------------------------------
-   10. BOTTOM NAV
+   9. TOP BAR (fixed — rendered into #top-bar-holder, a flex:none sibling
+   of #view-container; see the app-shell CSS comment for the mechanism)
    --------------------------------------------------------------------- */
-function renderBottomNav() {
-  return `<nav class="bottom-nav">${NAV_ITEMS.map(it => `
-    <button class="nav-item ${App.route === it.id ? 'active' : ''}" data-route="${it.id}">
-      <span class="ico">${it.icon}</span><span class="lbl">${it.label}</span>
-    </button>`).join('')}</nav>`;
+function renderTopBar(s) {
+  const isRemote = Store.mode() === 'remote';
+  const me = getUser(s, s.currentUser);
+
+  if (App.subRoute) {
+    const meta = SUBROUTE_META[App.subRoute];
+    return `
+      <button class="back-header" id="back-btn">‹ ${esc(meta.parentLabel)}</button>
+      <h1>${esc(meta.title)}</h1>`;
+  }
+
+  return `
+    <div class="top-bar">
+      <div>
+        <h1>${TITLE_MAP[App.route] || 'Bugün'}</h1>
+        ${isRemote
+          ? `<div class="sub">Merhaba, <strong>${esc(me.name)}</strong></div>`
+          : `<div class="sub">Görüntülenen: ${s.currentUser === 'A' ? '<strong>Ezgi</strong> / Aslı' : 'Ezgi / <strong>Aslı</strong>'}</div>`}
+      </div>
+      ${isRemote ? '' : `
+      <div class="user-toggle" id="user-toggle">
+        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}">Ezgi</button>
+        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}">Aslı</button>
+      </div>`}
+    </div>`;
 }
-function wireBottomNav() {
-  document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => { App.route = btn.dataset.route; render(); });
+function wireTopBar() {
+  const back = document.getElementById('back-btn');
+  if (back) back.addEventListener('click', goBack);
+  const toggle = document.getElementById('user-toggle');
+  if (!toggle) return;
+  toggle.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-user]');
+    if (!btn) return;
+    Store.update(s => { s.currentUser = btn.dataset.user; });
+    App.subRoute = null;
+    render();
   });
 }
 
 /* ---------------------------------------------------------------------
-   11. ONBOARDING
+   10. BOTTOM NAV — 4 tabs, hand-rolled SVG icons, soft capsule active state
+   --------------------------------------------------------------------- */
+function renderBottomNav() {
+  return `<nav class="bottom-nav">${NAV_ITEMS.map(it => {
+    const isActive = App.subRoute ? (SUBROUTE_META[App.subRoute] && SUBROUTE_META[App.subRoute].parent === it.id) : App.route === it.id;
+    return `
+    <button class="nav-item ${isActive ? 'active' : ''}" data-route="${it.id}">
+      <span class="ico">${ICONS[it.icon]}</span><span class="lbl">${it.label}</span>
+    </button>`;
+  }).join('')}</nav>`;
+}
+function wireBottomNav() {
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => { navigateTo(btn.dataset.route, null); });
+  });
+}
+
+/* ---------------------------------------------------------------------
+   11. ONBOARDING — unchanged, renders outside the tab/header system.
    --------------------------------------------------------------------- */
 function renderOnboarding(s) {
   const uKey = s.currentUser;
@@ -842,74 +1240,35 @@ function wireOnboarding() {
         st.onboarded[uKey] = true;
       }, 'ONBOARD', payload);
     } catch (e) { err.textContent = 'Kaydedilemedi: ' + e.message; return; }
-    App.route = 'home';
+    App.route = 'today';
+    App.subRoute = null;
     render();
   });
 }
 
 /* ---------------------------------------------------------------------
-   12. HOME
-   --------------------------------------------------------------------- */
-function renderHome(s) {
-  const user = getUser(s, s.currentUser);
-  const other = getUser(s, otherOf(s.currentUser));
-  const streak = computeStreak(user);
-  const together = computeTogetherStreak(s);
-  const checkedIn = todayCheckin(user);
-  const otherCheckedIn = todayCheckin(other);
-  const water = todayWater(user);
-  const meals = todayMealCount(user);
-  const exDone = todayExerciseDone(user);
-  const day = user.days[todayKey()] || blankDay();
-  const consumedKcal = day.meals.reduce((sum, m) => sum + (m.estimate ? m.estimate.mid : 0), 0);
-  const burnedKcal = day.exercises.reduce((sum, ex) => sum + (ex.estimatedKcal || 0), 0);
-
-  return `
-    <div class="row" style="margin-bottom:14px;">
-      <div>
-        <div style="font-weight:800;font-size:16px;">${fmtLong(todayKey())}</div>
-        <span class="pill ${checkedIn ? 'pill-good' : 'pill-neutral'}">${checkedIn ? '✓ Bugün check-in yapıldı' : 'Bugün henüz check-in yok'}</span>
-      </div>
-    </div>
-
-    <div class="streak-row">
-      <div class="streak-card"><div class="n num">${streak}</div><div class="lbl">Senin Serin 🔥</div></div>
-      <div class="streak-card together"><div class="n num">${together}</div><div class="lbl">Birlikte Seri 🌿</div></div>
-    </div>
-
-    <div class="partner-strip">
-      <span class="dot ${otherCheckedIn ? 'dot-yes' : 'dot-no'}"></span>
-      <span style="font-size:13.5px;">${esc(other.name)} ${otherCheckedIn ? 'bugün check-in yaptı' : "bugün henüz check-in yapmadı"}</span>
-    </div>
-
-    <div class="grid-3" style="margin-bottom:12px;">
-      <div class="mini-stat"><div class="lbl">Su</div><div class="val num">${water}/${user.setup.waterGoal}</div></div>
-      <div class="mini-stat"><div class="lbl">Öğün</div><div class="val num">${meals}</div></div>
-      <div class="mini-stat"><div class="lbl">Egzersiz</div><div class="val">${exDone ? '✓' : '—'}</div></div>
-    </div>
-
-    <div class="grid-2" style="margin-bottom:16px;">
-      <div class="mini-stat"><div class="lbl">Tüketilen (tahmini)</div><div class="val num">${consumedKcal ? '≈ ' + consumedKcal + ' kcal' : '—'}</div></div>
-      <div class="mini-stat"><div class="lbl">Yakılan (tahmini)</div><div class="val num">${burnedKcal ? '≈ ' + burnedKcal + ' kcal' : '—'}</div></div>
-    </div>
-
-    <button class="btn btn-primary" id="home-cta" style="margin-bottom:8px;">Bugünü Kaydet</button>
-  `;
-}
-function wireHome() {
-  document.getElementById('home-cta').addEventListener('click', () => { App.route = 'today'; render(); });
-}
-
-/* ---------------------------------------------------------------------
-   13. TODAY
+   12. BUGÜN (daily action center) — every existing weight/meal/water/
+   exercise/note CRUD flow below is untouched; only the surrounding
+   presentation (header/stat row/empty states/CTA) changed.
    --------------------------------------------------------------------- */
 function renderToday(s) {
   const user = getUser(s, s.currentUser);
   const key = todayKey();
   const day = user.days[key] || blankDay();
+  const checkedIn = todayCheckin(user);
+  const water = todayWater(user);
+  const meals = todayMealCount(user);
+  const exDone = todayExerciseDone(user);
 
   return `
-    <p class="sub" style="margin:-6px 0 16px;">${fmtLong(key)} için durumunu güncelle.</p>
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:800;font-size:15px;">${fmtLong(key)}</div>
+      <span class="pill ${checkedIn ? 'pill-good' : 'pill-neutral'}" style="margin-top:4px;">${checkedIn ? '✓ Check-in tamamlandı' : 'Check-in henüz tamamlanmadı'}</span>
+    </div>
+
+    <div class="stat-line">
+      <span>💧 ${water}/${user.setup.waterGoal}</span><span>🍽 ${meals} öğün</span><span>🏃 ${exDone ? '1' : '0'} egzersiz</span>
+    </div>
 
     <div class="card">
       <div class="section-title">Kilo</div>
@@ -959,6 +1318,8 @@ function renderToday(s) {
       </div>
       <button class="btn btn-soft btn-sm" id="save-note">Notu Kaydet</button>
     </div>
+
+    <button class="btn btn-primary" id="today-cta" style="margin-bottom:8px;">${checkedIn ? 'Bugünü Tamamla ✓' : 'Bugünü Kaydet'}</button>
   `;
 }
 function renderGlasses(count, goal) {
@@ -968,7 +1329,7 @@ function renderGlasses(count, goal) {
   return out;
 }
 function renderMealList(day) {
-  if (!day.meals.length) return `<div class="empty-state">Henüz öğün yok 👀</div>`;
+  if (!day.meals.length) return `<div class="empty-state">Henüz öğün eklenmedi.</div>`;
   return day.meals.map(m => `
     <div class="list-item" data-meal-id="${m.id}">
       <div class="top-row">
@@ -989,7 +1350,7 @@ function renderMealList(day) {
     })();
 }
 function renderExerciseList(day) {
-  if (!day.exercises.length) return `<div class="empty-state">Henüz egzersiz yok 👀</div>`;
+  if (!day.exercises.length) return `<div class="empty-state">Henüz egzersiz eklenmedi.</div>`;
   return day.exercises.map(ex => `
     <div class="list-item" data-ex-id="${ex.id}">
       <div class="top-row">
@@ -1133,6 +1494,14 @@ function wireToday() {
       toast('Not kaydedildi.');
     } catch (e) { toast('Kaydedilemedi: ' + e.message); }
   });
+
+  document.getElementById('today-cta').addEventListener('click', async () => {
+    try {
+      await runChange(st => { markCheckin(st, st.currentUser); }, 'MARK_CHECKIN', {});
+    } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+    toast('Bugün kaydedildi.');
+    render();
+  });
 }
 
 function wireMealForm(existing) {
@@ -1221,14 +1590,15 @@ function wireExerciseForm(existing) {
 }
 
 /* ---------------------------------------------------------------------
-   14. PROGRESS (own data only)
+   13. İLERLEME (own data only)
    --------------------------------------------------------------------- */
 function renderProgress(s) {
   const user = getUser(s, s.currentUser);
   const change = totalChange(user);
   const pct = goalProgressPct(user);
   const streak = computeStreak(user);
-  const history = sortedDayKeys(user).slice(-10).reverse();
+  const history = sortedDayKeys(user).slice(-6).reverse();
+  const range = App.progressRange || '30';
 
   return `
     <div class="grid-2" style="margin-bottom:14px;">
@@ -1245,12 +1615,19 @@ function renderProgress(s) {
     </div>
 
     <div class="card">
-      <div class="section-title">Kilo Trendi</div>
+      <div class="row" style="margin-bottom:2px;">
+        <div class="section-title" style="margin:0;">Kilo Trendi</div>
+      </div>
+      <div class="tabs" id="progress-range-tabs" style="margin-bottom:0;">
+        ${[{ id: '7', lbl: '7G' }, { id: '30', lbl: '30G' }, { id: 'all', lbl: 'Tümü' }].map(r => `<button data-range="${r.id}" class="${range === r.id ? 'active' : ''}">${r.lbl}</button>`).join('')}
+      </div>
       <div class="chart-wrap"><canvas id="progress-chart"></canvas></div>
     </div>
 
     <div class="card">
-      <div class="section-title">Check-in Geçmişi</div>
+      <div class="row" style="margin-bottom:10px;">
+        <div class="section-title" style="margin:0;">Check-in Geçmişi</div>
+      </div>
       ${history.length ? history.map(k => {
         const d = user.days[k];
         return `<div class="row" style="padding:7px 0;border-bottom:1px solid var(--border);">
@@ -1258,13 +1635,31 @@ function renderProgress(s) {
           <span class="pill ${d.checkin ? 'pill-good' : 'pill-bad'}">${d.checkin ? '✓ Check-in' : 'Kayıt yok'}</span>
         </div>`;
       }).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
+      <button class="btn-ghost btn-sm" id="progress-history-link" style="margin-top:4px;">Tüm geçmişi gör →</button>
     </div>
   `;
 }
 function wireProgress() {
   const s = Store.get();
   const user = getUser(s, s.currentUser);
-  const series = weightTrendSeries(user);
+
+  const rangeTabs = document.getElementById('progress-range-tabs');
+  if (rangeTabs) rangeTabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-range]');
+    if (!btn) return;
+    App.progressRange = btn.dataset.range;
+    render();
+  });
+  document.getElementById('progress-history-link').addEventListener('click', () => navigateTo('progress', 'progress-history'));
+
+  const range = App.progressRange || '30';
+  let series = weightTrendSeries(user);
+  if (range !== 'all') {
+    const days = parseInt(range, 10);
+    const cutoff = keyMinusDays(todayKey(), days - 1);
+    series = series.filter(p => p.key >= cutoff);
+  }
+
   const ctx = document.getElementById('progress-chart');
   if (App.charts.progress) { App.charts.progress.destroy(); App.charts.progress = null; }
   if (!series.length) { ctx.parentElement.innerHTML = `<div class="empty-state">Kilonu kaydettikçe burada trend grafiği oluşacak.</div>`; return; }
@@ -1275,45 +1670,67 @@ function wireProgress() {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { font: { family: 'Space Mono' } } }, x: { ticks: { font: { size: 10 } } } } }
   });
 }
+function renderProgressHistory(s) {
+  const user = getUser(s, s.currentUser);
+  const all = sortedDayKeys(user).reverse();
+  return `
+    <div class="card">
+      ${all.length ? all.map(k => {
+        const d = user.days[k];
+        return `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <span class="sub">${fmtShort(k)}</span>
+          <span class="pill ${d.checkin ? 'pill-good' : 'pill-bad'}">${d.checkin ? '✓ Check-in' : 'Kayıt yok'}</span>
+        </div>`;
+      }).join('') : `<div class="empty-state">Henüz kayıt yok.</div>`}
+    </div>`;
+}
+function wireProgressHistory() { /* no interactive elements besides the back header, handled globally */ }
 
 /* ---------------------------------------------------------------------
-   15. TOGETHER
+   14. BİRLİKTE — single dashboard: streak + privacy-respecting comparison
+   card, then Kilo/Notes/Songs/Wishlist/Feed as feature-entry rows into
+   detail sub-screens. buildPartnerView / privacy logic is untouched.
    --------------------------------------------------------------------- */
-const TOGETHER_TABS = [
-  { id: 'status', label: 'Bugün' },
-  { id: 'chart', label: 'Kilo' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'songs', label: 'Songs' },
-  { id: 'wishlist', label: 'Wishlist' },
-  { id: 'feed', label: 'Feed' },
-];
-
 /* Role A is always Ezgi, role B is always Aslı (fixed identity, not viewer-
    dependent) — used to keep chart/legend colors consistent for both. */
 const ROLE_COLOR = { A: '#8b5cf6', B: '#3b82f6' }; // Ezgi = mor, Aslı = mavi
 
 function renderTogether(s) {
   const other = getUser(s, otherOf(s.currentUser));
-  let body = '';
-  if (App.togetherTab === 'status') body = renderTogetherStatus(s, other);
-  else if (App.togetherTab === 'chart') body = renderTogetherChart(s);
-  else if (App.togetherTab === 'notes') body = renderSharedNotes(s);
-  else if (App.togetherTab === 'songs') body = renderSongs(s);
-  else if (App.togetherTab === 'wishlist') body = renderWishlist(s);
-  else if (App.togetherTab === 'feed') body = renderActivityFeed(s);
-
+  const together = computeTogetherStreak(s);
+  const rows = [
+    { sub: 'together-progress', icon: '⚖️', title: 'Kilo', desc: 'Değişim karşılaştırması ve grafik' },
+    { sub: 'together-notes', icon: '💌', title: 'Notlar', desc: 'Küçük notlar bırakın' },
+    { sub: 'together-songs', icon: '🎧', title: 'Şarkılar', desc: 'Günün şarkısını önerin' },
+    { sub: 'together-wishlist', icon: '✨', title: 'Dilek Listesi', desc: 'Birlikte yapılacaklar' },
+    { sub: 'together-feed', icon: '📰', title: 'Aktivite Akışı', desc: 'Son hareketler' },
+  ];
   return `
-    <div class="tabs" id="together-tabs">
-      ${TOGETHER_TABS.map(t => `<button data-tab="${t.id}" class="${App.togetherTab === t.id ? 'active' : ''}">${t.label}</button>`).join('')}
+    <div class="streak-card together" style="margin-bottom:14px;text-align:center;">
+      <div class="n num">${together}</div><div class="lbl">🔥 Birlikte Seri</div>
     </div>
-    ${body}
+    ${renderTogetherStatus(s, other)}
+    <div class="card">
+      <div class="section-title">Daha fazlası</div>
+      <div class="feature-list">
+        ${rows.map(r => `<button class="feature-row" data-sub="${r.sub}">
+          <span class="ico">${r.icon}</span>
+          <span class="body"><span class="title">${esc(r.title)}</span><span class="desc">${esc(r.desc)}</span></span>
+          <span class="chev">›</span>
+        </button>`).join('')}
+      </div>
+    </div>
   `;
+}
+function wireTogetherMain() {
+  document.querySelectorAll('.feature-row[data-sub]').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo('together', btn.dataset.sub));
+  });
 }
 
 function renderTogetherStatus(s, other) {
   const me = getUser(s, s.currentUser);
   const meta = getPartnerMeta(s, other);
-  const myChange = totalChange(me);
 
   const rows = [
     { label: 'Check-in', mine: todayCheckin(me) ? '✓ Yapıldı' : 'Yapılmadı', theirs: todayCheckin(other) ? '✓ Yapıldı' : 'Yapılmadı', mineGood: todayCheckin(me), theirsGood: todayCheckin(other) },
@@ -1338,6 +1755,15 @@ function renderTogetherStatus(s, other) {
         </div>`).join('')}
       <div class="row" style="padding-top:8px;"><span class="sub">${esc(other.name)} son güncelleme</span><span class="sub num">${relativeDays(meta.lastUpdateKey)}</span></div>
     </div>
+  `;
+}
+
+function renderTogetherProgress(s) {
+  const other = getUser(s, otherOf(s.currentUser));
+  const me = getUser(s, s.currentUser);
+  const meta = getPartnerMeta(s, other);
+  const myChange = totalChange(me);
+  return `
     <div class="card">
       <div class="section-title">Kilo</div>
       <p class="sub" style="margin-top:-4px;">Gizlilik nedeniyle yalnızca değişim gösterilir, gerçek kilo hiçbir zaman karşı tarafa gönderilmez.</p>
@@ -1346,9 +1772,9 @@ function renderTogetherStatus(s, other) {
         <div class="mini-stat"><div class="lbl">${esc(other.name)}</div><div class="val num">${meta.totalChange == null ? '—' : (meta.totalChange > 0 ? '+' : '') + meta.totalChange + ' kg'}</div></div>
       </div>
     </div>
+    ${renderTogetherChart(s)}
   `;
 }
-
 function renderTogetherChart(s) {
   return `
     <div class="card">
@@ -1361,6 +1787,32 @@ function renderTogetherChart(s) {
       <p class="sub" style="margin-top:10px;">Bir gün veri girilmediyse son bilinen değer devam ettirilir; bu, o gün yeni ölçüm yapıldığı anlamına gelmez.</p>
     </div>
   `;
+}
+function wireTogetherChart() {
+  const s = Store.get();
+  const ctx = document.getElementById('together-chart');
+  if (App.charts.together) { App.charts.together.destroy(); App.charts.together = null; }
+  const seriesA = getSeriesForRole(s, 'A');
+  const seriesB = getSeriesForRole(s, 'B');
+  if (typeof Chart === 'undefined') { ctx.parentElement.innerHTML = `<div class="empty-state">Grafik kütüphanesi yüklenemedi (internet bağlantısı gerekiyor).</div>`; return; }
+  App.charts.together = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: seriesA.map(p => fmtShort(p.key)),
+      datasets: [
+        { label: s.users.A.name, data: seriesA.map(p => p.value), borderColor: ROLE_COLOR.A, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesA.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.A },
+        { label: s.users.B.name, data: seriesB.map(p => p.value), borderColor: ROLE_COLOR.B, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesB.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.B },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { afterLabel: (item) => { const series = item.datasetIndex === 0 ? seriesA : seriesB; const p = series[item.dataIndex]; return p.isCarried ? `Last measured: ${relativeDays(p.lastKnownKey)}` : ''; } } }
+      },
+      scales: { y: { ticks: { font: { family: 'Space Mono' } } }, x: { ticks: { font: { size: 10 } } } }
+    }
+  });
 }
 
 function renderSharedNotes(s) {
@@ -1382,8 +1834,50 @@ function renderSharedNotes(s) {
         <div class="reactions">
           ${REACTIONS.map(r => `<button data-react="${n.id}" data-emoji="${r}">${r}${n.reactions[r] ? `<span class="c">${n.reactions[r]}</span>` : ''}</button>`).join('')}
         </div>
-      </div>`).join('') : `<div class="empty-state">Henüz bir şey yok. İlk notunu ekle.</div>`}
+      </div>`).join('') : `<div class="empty-state">Henüz not yok.</div>`}
   `;
+}
+function wireSharedNotes() {
+  const s = Store.get();
+  document.getElementById('note-send').addEventListener('click', async () => {
+    const txt = document.getElementById('note-input').value.trim();
+    if (!txt) return;
+    try {
+      await runChange(st => { st.shared.notes.push({ id: uid(), author: st.currentUser, text: txt, ts: Date.now(), reactions: { '❤️': 0, '😂': 0, '🔥': 0, '🌱': 0 } }); }, 'ADD_SHARED_NOTE', { text: txt });
+    } catch (e) { toast('Gönderilemedi: ' + e.message); return; }
+    render();
+  });
+  document.querySelectorAll('[data-react]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.react, emoji = btn.dataset.emoji;
+      try {
+        await runChange(st => { const note = st.shared.notes.find(n => n.id === id); if (note) note.reactions[emoji] = (note.reactions[emoji] || 0) + 1; }, 'REACT_NOTE', { id, emoji });
+      } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+      render();
+    });
+  });
+  document.querySelectorAll('[data-edit-note]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.editNote;
+      const note = s.shared.notes.find(n => n.id === id);
+      if (!note) return;
+      const next = prompt('Notu düzenle:', note.text);
+      if (next == null || !next.trim()) return;
+      try {
+        await runChange(st => { const n = st.shared.notes.find(n => n.id === id); if (n) { n.text = next.trim(); n.edited = true; } }, 'EDIT_SHARED_NOTE', { id, text: next.trim() });
+      } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+      render();
+    });
+  });
+  document.querySelectorAll('[data-del-note]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.delNote;
+      try {
+        await runChange(st => { st.shared.notes = st.shared.notes.filter(n => n.id !== id); }, 'DELETE_SHARED_NOTE', { id });
+      } catch (e) { toast('Silinemedi: ' + e.message); return; }
+      render();
+    });
+  });
 }
 
 function renderSongs(s) {
@@ -1405,8 +1899,29 @@ function renderSongs(s) {
           <div class="meta">${sg.author === s.currentUser ? 'Sen önerdin' : `${s.users[sg.author].name} önerdi`} · ${relativeDays(dateKey(new Date(sg.ts)))}</div>
         </div>
         ${sg.author === s.currentUser ? `<button class="btn-danger-ghost" data-del-song="${sg.id}">Sil</button>` : ''}
-      </div>`).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
+      </div>`).join('') : `<div class="empty-state">Henüz şarkı yok.</div>`}
   `;
+}
+function wireSongs() {
+  document.getElementById('song-send').addEventListener('click', async () => {
+    const song = document.getElementById('song-title').value.trim();
+    const artist = document.getElementById('song-artist').value.trim();
+    const note = document.getElementById('song-note').value.trim();
+    if (!song || !artist) { toast('Şarkı ve sanatçı adı gir.'); return; }
+    try {
+      await runChange(st => { st.shared.songs.push({ id: uid(), author: st.currentUser, song, artist, note, ts: Date.now() }); logActivity(st, '🎵', `${getUser(st, st.currentUser).name} bir şarkı önerdi`); }, 'ADD_SONG', { song, artist, note });
+    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+    render();
+  });
+  document.querySelectorAll('[data-del-song]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.delSong;
+      try {
+        await runChange(st => { st.shared.songs = st.shared.songs.filter(sg => sg.id !== id); }, 'DELETE_SONG', { id });
+      } catch (e) { toast('Silinemedi: ' + e.message); return; }
+      render();
+    });
+  });
 }
 
 function renderWishlist(s) {
@@ -1421,7 +1936,7 @@ function renderWishlist(s) {
             <span class="txt ${it.done ? 'done' : ''}">${esc(it.text)}</span>
             <button class="btn-ghost btn-sm" data-edit-wish="${it.id}">Düzenle</button>
             <button class="btn-danger-ghost" data-del-wish="${it.id}">Sil</button>
-          </div>`).join('') : `<div class="empty-state">Henüz bir şey yok. İlk dileğini ekle.</div>`}
+          </div>`).join('') : `<div class="empty-state">Henüz dilek yok.</div>`}
       </div>
       <div class="field" style="display:flex;gap:8px;margin-bottom:0;">
         <input type="text" id="wish-input" placeholder="örn. Hafta sonu gezisi" style="flex:1;">
@@ -1430,214 +1945,135 @@ function renderWishlist(s) {
     </div>
   `;
 }
+function wireWishlist() {
+  document.getElementById('wish-add').addEventListener('click', async () => {
+    const val = document.getElementById('wish-input').value.trim();
+    if (!val) return;
+    try {
+      await runChange(st => { st.shared.wishlist.push({ id: uid(), text: val, done: false, addedBy: st.currentUser }); }, 'ADD_WISH', { text: val });
+    } catch (e) { toast('Eklenemedi: ' + e.message); return; }
+    render();
+  });
+  document.querySelectorAll('[data-toggle-wish]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.toggleWish;
+      try {
+        await runChange(st => { const it = st.shared.wishlist.find(w => w.id === id); if (it) it.done = !it.done; }, 'TOGGLE_WISH', { id });
+      } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+      render();
+    });
+  });
+  document.querySelectorAll('[data-edit-wish]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.editWish;
+      const s = Store.get();
+      const it = s.shared.wishlist.find(w => w.id === id);
+      if (!it) return;
+      const next = prompt('Dileği düzenle:', it.text);
+      if (next == null || !next.trim()) return;
+      try {
+        await runChange(st => { const w = st.shared.wishlist.find(w => w.id === id); if (w) w.text = next.trim(); }, 'EDIT_WISH', { id, text: next.trim() });
+      } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
+      render();
+    });
+  });
+  document.querySelectorAll('[data-del-wish]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.delWish;
+      try {
+        await runChange(st => { st.shared.wishlist = st.shared.wishlist.filter(w => w.id !== id); }, 'DELETE_WISH', { id });
+      } catch (e) { toast('Silinemedi: ' + e.message); return; }
+      render();
+    });
+  });
+}
 
 function renderActivityFeed(s) {
   const items = s.shared.activity.slice(0, 30);
   return `
     <div class="card">
-      <div class="section-title">Aktivite Akışı</div>
       ${items.length ? items.map(a => `
         <div class="feed-row">
           <span>${a.icon}</span><span>${esc(a.text)}</span>
           <span class="t">${relativeDays(dateKey(new Date(a.ts)))}</span>
-        </div>`).join('') : `<div class="empty-state">Henüz bir şey yok.</div>`}
+        </div>`).join('') : `<div class="empty-state">Henüz bir hareket yok.</div>`}
     </div>
   `;
 }
 
-function wireTogether() {
-  const s = Store.get();
-  document.getElementById('together-tabs').addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-tab]');
-    if (!btn) return;
-    App.togetherTab = btn.dataset.tab;
-    render();
-  });
-
-  if (App.togetherTab === 'chart') {
-    const ctx = document.getElementById('together-chart');
-    if (App.charts.together) { App.charts.together.destroy(); App.charts.together = null; }
-    const seriesA = getSeriesForRole(s, 'A');
-    const seriesB = getSeriesForRole(s, 'B');
-    if (typeof Chart === 'undefined') { ctx.parentElement.innerHTML = `<div class="empty-state">Grafik kütüphanesi yüklenemedi (internet bağlantısı gerekiyor).</div>`; return; }
-    App.charts.together = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: seriesA.map(p => fmtShort(p.key)),
-        datasets: [
-          { label: s.users.A.name, data: seriesA.map(p => p.value), borderColor: ROLE_COLOR.A, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesA.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.A },
-          { label: s.users.B.name, data: seriesB.map(p => p.value), borderColor: ROLE_COLOR.B, backgroundColor: 'transparent', tension: 0.35, pointRadius: seriesB.map(p => p.isCarried ? 2 : 4), pointBackgroundColor: ROLE_COLOR.B },
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { afterLabel: (item) => { const series = item.datasetIndex === 0 ? seriesA : seriesB; const p = series[item.dataIndex]; return p.isCarried ? `Last measured: ${relativeDays(p.lastKnownKey)}` : ''; } } }
-        },
-        scales: { y: { ticks: { font: { family: 'Space Mono' } } }, x: { ticks: { font: { size: 10 } } } }
-      }
-    });
-    return;
-  }
-
-  if (App.togetherTab === 'notes') {
-    document.getElementById('note-send').addEventListener('click', async () => {
-      const txt = document.getElementById('note-input').value.trim();
-      if (!txt) return;
-      try {
-        await runChange(st => { st.shared.notes.push({ id: uid(), author: st.currentUser, text: txt, ts: Date.now(), reactions: { '❤️': 0, '😂': 0, '🔥': 0, '🌱': 0 } }); }, 'ADD_SHARED_NOTE', { text: txt });
-      } catch (e) { toast('Gönderilemedi: ' + e.message); return; }
-      render();
-    });
-    document.querySelectorAll('[data-react]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.react, emoji = btn.dataset.emoji;
-        try {
-          await runChange(st => { const note = st.shared.notes.find(n => n.id === id); if (note) note.reactions[emoji] = (note.reactions[emoji] || 0) + 1; }, 'REACT_NOTE', { id, emoji });
-        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
-        render();
-      });
-    });
-    document.querySelectorAll('[data-edit-note]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.editNote;
-        const note = s.shared.notes.find(n => n.id === id);
-        if (!note) return;
-        const next = prompt('Notu düzenle:', note.text);
-        if (next == null || !next.trim()) return;
-        try {
-          await runChange(st => { const n = st.shared.notes.find(n => n.id === id); if (n) { n.text = next.trim(); n.edited = true; } }, 'EDIT_SHARED_NOTE', { id, text: next.trim() });
-        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
-        render();
-      });
-    });
-    document.querySelectorAll('[data-del-note]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.delNote;
-        try {
-          await runChange(st => { st.shared.notes = st.shared.notes.filter(n => n.id !== id); }, 'DELETE_SHARED_NOTE', { id });
-        } catch (e) { toast('Silinemedi: ' + e.message); return; }
-        render();
-      });
-    });
-  }
-
-  if (App.togetherTab === 'songs') {
-    document.getElementById('song-send').addEventListener('click', async () => {
-      const song = document.getElementById('song-title').value.trim();
-      const artist = document.getElementById('song-artist').value.trim();
-      const note = document.getElementById('song-note').value.trim();
-      if (!song || !artist) { toast('Şarkı ve sanatçı adı gir.'); return; }
-      try {
-        await runChange(st => { st.shared.songs.push({ id: uid(), author: st.currentUser, song, artist, note, ts: Date.now() }); logActivity(st, '🎵', `${getUser(st, st.currentUser).name} bir şarkı önerdi`); }, 'ADD_SONG', { song, artist, note });
-      } catch (e) { toast('Eklenemedi: ' + e.message); return; }
-      render();
-    });
-    document.querySelectorAll('[data-del-song]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.delSong;
-        try {
-          await runChange(st => { st.shared.songs = st.shared.songs.filter(sg => sg.id !== id); }, 'DELETE_SONG', { id });
-        } catch (e) { toast('Silinemedi: ' + e.message); return; }
-        render();
-      });
-    });
-  }
-
-  if (App.togetherTab === 'wishlist') {
-    document.getElementById('wish-add').addEventListener('click', async () => {
-      const val = document.getElementById('wish-input').value.trim();
-      if (!val) return;
-      try {
-        await runChange(st => { st.shared.wishlist.push({ id: uid(), text: val, done: false, addedBy: st.currentUser }); }, 'ADD_WISH', { text: val });
-      } catch (e) { toast('Eklenemedi: ' + e.message); return; }
-      render();
-    });
-    document.querySelectorAll('[data-toggle-wish]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.toggleWish;
-        try {
-          await runChange(st => { const it = st.shared.wishlist.find(w => w.id === id); if (it) it.done = !it.done; }, 'TOGGLE_WISH', { id });
-        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
-        render();
-      });
-    });
-    document.querySelectorAll('[data-edit-wish]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.editWish;
-        const it = s.shared.wishlist.find(w => w.id === id);
-        if (!it) return;
-        const next = prompt('Dileği düzenle:', it.text);
-        if (next == null || !next.trim()) return;
-        try {
-          await runChange(st => { const w = st.shared.wishlist.find(w => w.id === id); if (w) w.text = next.trim(); }, 'EDIT_WISH', { id, text: next.trim() });
-        } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
-        render();
-      });
-    });
-    document.querySelectorAll('[data-del-wish]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const id = btn.dataset.delWish;
-        try {
-          await runChange(st => { st.shared.wishlist = st.shared.wishlist.filter(w => w.id !== id); }, 'DELETE_WISH', { id });
-        } catch (e) { toast('Silinemedi: ' + e.message); return; }
-        render();
-      });
-    });
-  }
-}
-
 /* ---------------------------------------------------------------------
-   16. PROFILE
+   15. BEN — personal dashboard + goals/account/data/appearance sub-screens
    --------------------------------------------------------------------- */
-function renderProfile(s) {
+function renderProfileMain(s) {
   const user = getUser(s, s.currentUser);
-  const isRemote = Store.mode() === 'remote';
+  const streak = computeStreak(user);
+  const together = computeTogetherStreak(s);
+  const week = weeklySummary(user);
+  const change = totalChange(user);
+  const cw = currentWeight(user);
+  const remain = (user.setup.goalWeight != null && cw != null) ? +(cw - user.setup.goalWeight).toFixed(1) : null;
+  const lastCheckinKey = sortedDayKeys(user).filter(k => user.days[k].checkin).pop() || null;
+
   return `
-    ${isRemote ? `
     <div class="card">
-      <div class="section-title">Hesap</div>
-      <p class="sub" style="margin-top:-4px;">Bu link ${esc(user.name)} olarak sana özel. Başkasıyla paylaşma.</p>
-      <button class="btn btn-outline btn-sm" id="pf-logout" style="margin-top:10px;">Çıkış yap</button>
-    </div>` : `
+      <div style="font-weight:800;font-size:16px;">${esc(user.name)}</div>
+      <div class="sub" style="margin-top:4px;">🔥 ${streak} günlük seri &nbsp;·&nbsp; 🌿 Birlikte seri: ${together} gün</div>
+    </div>
+
     <div class="card">
-      <div class="section-title">Görüntülenen</div>
-      <div class="user-toggle" id="profile-user-toggle" style="width:100%;">
-        <button data-user="A" class="${s.currentUser === 'A' ? 'active' : ''}" style="flex:1;">Ezgi</button>
-        <button data-user="B" class="${s.currentUser === 'B' ? 'active' : ''}" style="flex:1;">Aslı</button>
-      </div>
-    </div>`}
+      <div class="section-title">Bu Hafta</div>
+      <div class="kv-row"><span class="k">Check-in yapılan gün</span><span class="v num">${week.checkinDays}/${week.totalDays}</span></div>
+      <div class="kv-row"><span class="k">Su hedefi tutturulan gün</span><span class="v num">${week.waterMet}/${week.totalDays}</span></div>
+      <div class="kv-row"><span class="k">Egzersiz sayısı</span><span class="v num">${week.exerciseCount}</span></div>
+      <div class="kv-row"><span class="k">Öğün sayısı</span><span class="v num">${week.mealCount}</span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">İlerlemem</div>
+      <div class="kv-row"><span class="k">Toplam değişim</span><span class="v num">${change == null ? '—' : (change > 0 ? '+' : '') + change + ' kg'}</span></div>
+      <div class="kv-row"><span class="k">Hedefe kalan</span><span class="v num">${remain == null ? '—' : Math.abs(remain) + ' kg'}</span></div>
+      <div class="kv-row"><span class="k">Son check-in</span><span class="v">${relativeDays(lastCheckinKey)}</span></div>
+      <button class="btn-ghost btn-sm" id="me-progress-link" style="margin-top:2px;">Detayları gör →</button>
+    </div>
+
     <div class="card">
       <div class="section-title">Hedeflerim</div>
+      <div class="kv-row"><span class="k">Hedef kilo</span><span class="v num">${user.setup.goalWeight != null ? user.setup.goalWeight + ' kg' : '—'}</span></div>
+      <div class="kv-row"><span class="k">Günlük su hedefi</span><span class="v num">${user.setup.waterGoal} bardak</span></div>
+      <div class="kv-row"><span class="k">Haftalık egzersiz hedefi</span><span class="v num">${user.setup.exerciseGoal} gün</span></div>
+      <button class="btn-ghost btn-sm" id="me-goals-link" style="margin-top:2px;">Hedefleri düzenle →</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Ayarlar</div>
+      <div class="settings-list">
+        <button class="settings-row" data-sub="me-appearance"><span>🎨 Görünüm &amp; Tema</span><span class="chev">›</span></button>
+        <button class="settings-row" data-sub="me-goals"><span>🎯 Hedeflerim</span><span class="chev">›</span></button>
+        <button class="settings-row" data-sub="me-account"><span>👤 Hesap</span><span class="chev">›</span></button>
+        <button class="settings-row" data-sub="me-data"><span>⚠️ Veri Yönetimi</span><span class="chev">›</span></button>
+      </div>
+    </div>
+  `;
+}
+function wireProfileMain() {
+  document.getElementById('me-progress-link').addEventListener('click', () => navigateTo('progress', null));
+  document.getElementById('me-goals-link').addEventListener('click', () => navigateTo('profile', 'me-goals'));
+  document.querySelectorAll('.settings-row[data-sub]').forEach(btn => {
+    btn.addEventListener('click', () => navigateTo('profile', btn.dataset.sub));
+  });
+}
+
+function renderMeGoals(s) {
+  const user = getUser(s, s.currentUser);
+  return `
+    <div class="card">
       <div class="field"><label>Hedef kilo (kg)</label><input type="number" step="0.1" id="pf-goal" value="${user.setup.goalWeight}"></div>
       <div class="field"><label>Günlük su hedefi</label><input type="number" id="pf-water" value="${user.setup.waterGoal}"></div>
       <div class="field"><label>Haftalık egzersiz hedefi</label><input type="number" id="pf-ex" value="${user.setup.exerciseGoal}"></div>
       <button class="btn btn-primary btn-sm" id="pf-save">Güncelle</button>
-    </div>
-    ${isRemote ? `
-    <div class="card">
-      <div class="section-title">Verilerimi Sıfırla</div>
-      <p class="sub" style="margin-top:-4px;">Kilo, öğün, egzersiz ve check-in geçmişini tamamen siler ve seni tekrar onboarding'e götürür. Bu işlem sadece kendi verini siler, ${esc(getUser(s, otherOf(s.currentUser)).name)}'nin verisi etkilenmez. Geri alınamaz.</p>
-      <button class="btn btn-outline btn-sm" id="pf-hard-reset" style="margin-top:10px;color:#a3453a;border-color:#a3453a;">Verilerimi Sıfırla</button>
-    </div>` : `
-    <div class="card">
-      <div class="section-title">Demo Verisi</div>
-      <p class="sub" style="margin-top:-4px;">Bu bir yerel demo modudur; veriler yalnızca bu tarayıcıda, localStorage üzerinde tutulur.</p>
-      <button class="btn btn-outline btn-sm" id="pf-reseed" style="margin-bottom:8px;">Demo Verisini Yenile</button>
-      <button class="btn btn-outline btn-sm" id="pf-reset">Sıfırla ve Onboarding'i Göster</button>
-    </div>`}
-  `;
+    </div>`;
 }
-function wireProfile() {
-  const toggle = document.getElementById('profile-user-toggle');
-  if (toggle) toggle.addEventListener('click', (e) => {
-    const btn = e.target.closest('button[data-user]');
-    if (!btn) return;
-    Store.update(s => { s.currentUser = btn.dataset.user; });
-    render();
-  });
-
+function wireMeGoals() {
   document.getElementById('pf-save').addEventListener('click', async () => {
     const goal = parseFloat(document.getElementById('pf-goal').value);
     const water = parseInt(document.getElementById('pf-water').value, 10);
@@ -1648,31 +2084,112 @@ function wireProfile() {
     } catch (e) { toast('Kaydedilemedi: ' + e.message); return; }
     render();
   });
+}
 
-  const reseed = document.getElementById('pf-reseed');
-  if (reseed) reseed.addEventListener('click', () => { Store.reset(); App.route = 'home'; render(); toast('Demo verisi yenilendi.'); });
-  const hardReset = document.getElementById('pf-reset');
-  if (hardReset) hardReset.addEventListener('click', () => { Store.hardReset(); App.route = 'home'; render(); });
+function renderMeAccount(s) {
+  const user = getUser(s, s.currentUser);
+  const isRemote = Store.mode() === 'remote';
+  if (isRemote) {
+    return `
+      <div class="card">
+        <p class="sub" style="margin-top:0;">Bu link ${esc(user.name)} olarak sana özel. Başkasıyla paylaşma.</p>
+        <button class="btn btn-outline btn-sm" id="pf-logout" style="margin-top:10px;">Çıkış yap</button>
+      </div>`;
+  }
+  return `
+    <div class="card">
+      <p class="sub" style="margin-top:0;">Yerel demo modundasın; erişim linki / hesap kavramı burada geçerli değil. Kullanıcı değiştirmek için üst çubuktaki geçişi kullan.</p>
+    </div>`;
+}
+function wireMeAccount() {
   const logout = document.getElementById('pf-logout');
   if (logout) logout.addEventListener('click', () => Store.logout());
+}
+
+function renderMeData(s) {
+  const isRemote = Store.mode() === 'remote';
+  if (isRemote) {
+    return `
+      <div class="card">
+        <p class="sub" style="margin-top:0;">Kilo, öğün, egzersiz ve check-in geçmişini tamamen siler ve seni tekrar onboarding'e götürür. Bu işlem sadece kendi verini siler, partnerinin verisi etkilenmez. Geri alınamaz.</p>
+        <button class="btn btn-outline btn-sm" id="pf-hard-reset" style="margin-top:10px;color:#a3453a;border-color:#a3453a;">Verilerimi Sıfırla</button>
+      </div>`;
+  }
+  return `
+    <div class="card">
+      <p class="sub" style="margin-top:0;">Bu bir yerel demo modudur; veriler yalnızca bu tarayıcıda, localStorage üzerinde tutulur.</p>
+      <button class="btn btn-outline btn-sm" id="pf-reseed" style="margin-bottom:8px;">Demo Verisini Yenile</button>
+      <button class="btn btn-outline btn-sm" id="pf-reset">Sıfırla ve Onboarding'i Göster</button>
+    </div>`;
+}
+function wireMeData() {
+  const reseed = document.getElementById('pf-reseed');
+  if (reseed) reseed.addEventListener('click', () => { Store.reset(); App.route = 'today'; App.subRoute = null; pushHash(); render(); toast('Demo verisi yenilendi.'); });
+  const localReset = document.getElementById('pf-reset');
+  if (localReset) localReset.addEventListener('click', () => { Store.hardReset(); App.route = 'today'; App.subRoute = null; pushHash(); render(); });
 
   const remoteReset = document.getElementById('pf-hard-reset');
-  if (remoteReset) remoteReset.addEventListener('click', async () => {
-    if (!confirm('Emin misin? Tüm kilo, öğün, egzersiz ve check-in geçmişin kalıcı olarak silinecek.')) return;
-    try {
-      await runChange(st => { const u = getUser(st, st.currentUser); st.users[st.currentUser] = blankUser(u.name, null, null); st.onboarded[st.currentUser] = false; }, 'RESET_MY_DATA', {});
-    } catch (e) { toast('Sıfırlanamadı: ' + e.message); return; }
-    App.route = 'home';
-    render();
-    toast('Verilerin sıfırlandı.');
+  if (remoteReset) remoteReset.addEventListener('click', () => {
+    openModal({
+      title: 'Verilerimi Sıfırla',
+      body: 'Bu işlem kilo, öğün, egzersiz ve check-in geçmişini kalıcı olarak silecek. İşlem geri alınamaz.',
+      buttons: [
+        { label: 'Vazgeç', cls: 'btn-outline', onClick: closeModal },
+        {
+          label: 'Verilerimi Sıfırla', cls: 'btn-primary', danger: true, onClick: async () => {
+            closeModal();
+            try {
+              await runChange(st => { const u = getUser(st, st.currentUser); st.users[st.currentUser] = blankUser(u.name, null, null); st.onboarded[st.currentUser] = false; }, 'RESET_MY_DATA', {});
+            } catch (e) { toast('Sıfırlanamadı: ' + e.message); return; }
+            App.route = 'today';
+            App.subRoute = null;
+            pushHash();
+            render();
+            toast('Verilerin sıfırlandı.');
+          }
+        },
+      ]
+    });
+  });
+}
+
+function renderMeAppearance(s) {
+  const user = getUser(s, s.currentUser);
+  const current = user.theme || 'default';
+  return `
+    <div class="theme-grid">
+      ${THEMES.map(t => `
+        <button class="theme-card ${current === t.key ? 'active' : ''}" data-theme-key="${t.key}">
+          <div class="emoji">${t.emoji}</div>
+          <div class="name">${esc(t.name)}</div>
+          <div class="sub">${esc(t.subtitle)}</div>
+          <div class="swatches">${t.swatches.map(c => `<span class="sw" style="background:${c};"></span>`).join('')}</div>
+          ${current === t.key ? '<div class="active-badge">✓ Aktif</div>' : ''}
+        </button>`).join('')}
+    </div>`;
+}
+function wireMeAppearance() {
+  document.querySelectorAll('.theme-card[data-theme-key]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const key = btn.dataset.themeKey;
+      applyTheme(key); // instant visual feedback before the round-trip resolves
+      try {
+        await runChange(st => { getUser(st, st.currentUser).theme = key; }, 'SET_THEME', { theme: key });
+      } catch (e) { toast('Tema kaydedilemedi: ' + e.message); }
+      render();
+    });
   });
 }
 
 /* ---------------------------------------------------------------------
-   17. INIT
+   16. INIT
    --------------------------------------------------------------------- */
 document.addEventListener('DOMContentLoaded', async () => {
   await Store.init();
+  if (Store.mode() !== 'gate') {
+    const s = Store.get();
+    if (s && s.onboarded[s.currentUser]) applyHashToApp();
+  }
   render();
 });
 
