@@ -511,49 +511,176 @@ function estimateExerciseKcal(type, durationMin, weightKg) {
 }
 
 /* Basit, ücretsiz "Estimate AI": açıklama metnindeki yaygın Türkçe yiyecek
-   kelimelerini ve varsa önlerindeki sayıyı tanıyıp kabaca kalori toplar.
-   Gerçek bir AI değildir ama anahtar/maliyet gerektirmez. */
+   kelimelerini, varsa gram/ml/litre cinsinden miktarı tanıyıp gerçek beslenme
+   değerlerine (100g/100ml başına kcal) dayalı olarak hesaplar. Gerçek bir AI
+   değildir ama anahtar/maliyet gerektirmez ve önceki sürümden çok daha isabetlidir. */
 const FOOD_DB = {
-  'yumurta': 90, 'ekmek': 80, 'tost': 320, 'simit': 300, 'peynir': 80, 'zeytin': 5,
-  'tavuk': 220, 'et': 260, 'köfte': 250, 'balık': 200, 'somon': 250,
-  'pilav': 200, 'bulgur': 180, 'makarna': 220, 'mercimek': 180, 'çorba': 150,
-  'salata': 60, 'sebze': 80, 'patates': 130, 'yoğurt': 100, 'süt': 120,
-  'muz': 90, 'elma': 80, 'meyve': 70, 'kuruyemiş': 180, 'badem': 170,
-  'çikolata': 220, 'kek': 350, 'baklava': 300, 'kurabiye': 150,
-  'menemen': 250, 'omlet': 200, 'granola': 180, 'yulaf': 150,
-  'ayran': 70, 'kola': 140, 'çay': 2, 'kahve': 5, 'reçel': 40, 'bal': 60,
-  'cips': 300, 'pizza': 285, 'hamburger': 550, 'döner': 450,
+  // içecekler — per100: 100 ml başına kcal, serving: miktar belirtilmezse varsayılan bardak/kutu (ml)
+  'portakal suyu': { per100: 45, serving: 200 }, 'elma suyu': { per100: 46, serving: 200 },
+  'vişne suyu': { per100: 55, serving: 200 }, 'nar suyu': { per100: 55, serving: 200 },
+  'meyve suyu': { per100: 45, serving: 200 }, 'sütlü kahve': { per100: 45, serving: 200 },
+  'türk kahvesi': { per100: 8, serving: 60 }, 'filtre kahve': { per100: 2, serving: 200 },
+  'yeşil çay': { per100: 1, serving: 200 }, 'bitki çayı': { per100: 1, serving: 200 },
+  'su': { per100: 0, serving: 200 }, 'maden suyu': { per100: 0, serving: 200 },
+  'soda': { per100: 2, serving: 200 }, 'ayran': { per100: 34, serving: 200 },
+  'süt': { per100: 61, serving: 200 }, 'limonata': { per100: 40, serving: 200 },
+  'smoothie': { per100: 60, serving: 300 }, 'kola': { per100: 42, serving: 330 },
+  'gazoz': { per100: 40, serving: 330 }, 'çay': { per100: 1, serving: 200 },
+  'kahve': { per100: 5, serving: 150 }, 'latte': { per100: 55, serving: 240 },
+  'cappuccino': { per100: 40, serving: 200 },
+  // katı yiyecekler — per100: 100 g başına kcal, serving: tipik 1 porsiyon gramajı
+  'yumurta': { per100: 155, serving: 55 }, 'ekmek': { per100: 265, serving: 30 },
+  'tost': { per100: 290, serving: 110 }, 'simit': { per100: 275, serving: 110 },
+  'peynir': { per100: 300, serving: 30 }, 'zeytin': { per100: 145, serving: 15 },
+  'tavuk': { per100: 165, serving: 130 }, 'köfte': { per100: 250, serving: 100 },
+  'balık': { per100: 140, serving: 150 }, 'somon': { per100: 208, serving: 130 },
+  'et': { per100: 250, serving: 120 }, 'pilav': { per100: 130, serving: 150 },
+  'bulgur': { per100: 115, serving: 150 }, 'makarna': { per100: 150, serving: 150 },
+  'mercimek': { per100: 116, serving: 150 }, 'çorba': { per100: 55, serving: 250 },
+  'salata': { per100: 40, serving: 150 }, 'sebze': { per100: 60, serving: 150 },
+  'patates': { per100: 87, serving: 150 }, 'yoğurt': { per100: 61, serving: 150 },
+  'muz': { per100: 89, serving: 100 }, 'elma': { per100: 52, serving: 150 },
+  'meyve': { per100: 55, serving: 130 }, 'kuruyemiş': { per100: 600, serving: 30 },
+  'badem': { per100: 575, serving: 30 }, 'çikolata': { per100: 545, serving: 30 },
+  'kek': { per100: 350, serving: 90 }, 'baklava': { per100: 430, serving: 70 },
+  'kurabiye': { per100: 480, serving: 30 }, 'menemen': { per100: 120, serving: 200 },
+  'omlet': { per100: 155, serving: 150 }, 'granola': { per100: 470, serving: 40 },
+  'yulaf': { per100: 375, serving: 40 }, 'reçel': { per100: 260, serving: 15 },
+  'bal': { per100: 305, serving: 15 }, 'cips': { per100: 540, serving: 40 },
+  'pizza': { per100: 266, serving: 120 }, 'hamburger': { per100: 295, serving: 220 },
+  'döner': { per100: 210, serving: 220 },
 };
+/* Anahtarları önce kelime sayısına (çok kelimeli ifadeler önce, ör. "portakal suyu"
+   tek başına "portakal"dan önce denensin), sonra uzunluğa göre sırala. Bu, "portakal
+   suyu" yazınca hem "portakal" hem "su" olarak çift sayılmasını engeller. */
+const FOOD_DB_KEYS = Object.keys(FOOD_DB).sort((a, b) => {
+  const wa = a.split(' ').length, wb = b.split(' ').length;
+  return wb !== wa ? wb - wa : b.length - a.length;
+});
+const QTY_UNIT_RE = 'kilogram|kilo|kg|gram|gr|g|mililitre|ml|santilitre|cl|litre|lt|l|adet|dilim|bardak|tane|porsiyon|kase|kutu|şişe';
+/* Bir miktar ifadesini ("330 ml", "1 bardak", "yarım", "2", vb.) o besinin varsayılan
+   porsiyon gramajına göre gerçek grama/ml'ye çevirir. */
+function parseQtyToGrams(qtyRaw, defaultServing) {
+  const q = (qtyRaw || '').trim();
+  if (!q) return defaultServing;
+  if (/^yarım/i.test(q)) return defaultServing * 0.5;
+  const wu = q.match(/(\d+(?:[.,]\d+)?)\s*(kilogram|kilo|kg|gram|gr|g|mililitre|ml|santilitre|cl|litre|lt|l)\b/i);
+  if (wu) {
+    let n = parseFloat(wu[1].replace(',', '.'));
+    const u = wu[2].toLowerCase();
+    if (/^(kilogram|kilo|kg)$/.test(u)) n *= 1000;
+    else if (/^(litre|lt|l)$/.test(u)) n *= 1000;
+    else if (/^(cl|santilitre)$/.test(u)) n *= 10;
+    return n; // g/gr/g/mililitre/ml zaten 1:1
+  }
+  const num = q.match(/\d+(?:[.,]\d+)?/);
+  const count = num ? parseFloat(num[0].replace(',', '.')) : 1;
+  return defaultServing * count;
+}
 function estimateCalories(desc) {
-  const str = (desc || '').toLowerCase().trim();
+  const raw = (desc || '').toLowerCase().trim();
+  if (!raw) return { mid: 0, low: 0, high: 0, detected: 'Açıklama boş.' };
+
+  // 1) Kullanıcı doğrudan kalori yazdıysa ("120 kcal", "150 kalori") onu birebir kullan —
+  //    kelime tanımaya hiç gerek yok, en isabetli tahmin zaten kullanıcının kendi rakamı.
+  const explicit = raw.match(/(\d+(?:[.,]\d+)?)\s*(kcal|kalori)\b/);
+  if (explicit) {
+    const val = Math.round(parseFloat(explicit[1].replace(',', '.')));
+    return { mid: val, low: val, high: val, detected: 'Belirttiğin kalori doğrudan kullanıldı.' };
+  }
+
+  let work = ' ' + raw + ' ';
   const found = [];
   let total = 0;
-  Object.keys(FOOD_DB).forEach(word => {
-    const re = new RegExp('(\\d+)?\\s*(' + word + '\\w*)', 'g');
+  FOOD_DB_KEYS.forEach(word => {
+    const info = FOOD_DB[word];
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // isteğe bağlı miktar hem önden ("330 ml portakal suyu") hem arkadan
+    // ("portakal suyu 330 ml", "Pfanner portakal suyu 330 ml") yakalanır.
+    const re = new RegExp('(\\d+(?:[.,]\\d+)?\\s*(?:' + QTY_UNIT_RE + ')?\\s*|yarım\\s+)?(' + escaped + ')\\w*(\\s+\\d+(?:[.,]\\d+)?\\s*(?:' + QTY_UNIT_RE + '))?', 'i');
     let m;
-    while ((m = re.exec(str))) {
-      const qty = m[1] ? parseInt(m[1], 10) : 1;
-      total += FOOD_DB[word] * qty;
-      found.push(qty > 1 ? `${qty} ${word}` : word);
+    while ((m = work.match(re))) {
+      const prefixQty = (m[1] || '').trim();
+      const suffixQty = (m[3] || '').trim();
+      const qtyRaw = prefixQty || suffixQty;
+      const grams = parseQtyToGrams(qtyRaw, info.serving);
+      const kcal = info.per100 * grams / 100;
+      total += kcal;
+      found.push(qtyRaw ? `${qtyRaw} ${word}` : word);
+      // Eşleşen kısmı boşlukla değiştir ki aynı bölge başka bir kelimeyle tekrar eşleşmesin.
+      work = work.slice(0, m.index) + ' '.repeat(m[0].length) + work.slice(m.index + m[0].length);
     }
   });
   if (found.length) {
-    const mid = Math.round(total / 10) * 10;
-    const spread = Math.max(30, Math.round(mid * 0.15));
+    const mid = Math.max(0, Math.round(total / 5) * 5);
+    const spread = Math.max(10, Math.round(mid * 0.08));
     return {
       mid, low: Math.max(0, mid - spread), high: mid + spread,
       detected: 'Algılanan: ' + found.join(', '),
     };
   }
-  // Tanınan bir kelime yoksa deterministik kaba bir tahmine düş.
+  // Tanınan bir kelime yoksa: rastgele büyük bir sayı yerine, makul bir ortalama
+  // porsiyon aralığında (150-320 kcal) deterministik bir tahmine düş.
   let hash = 0;
-  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
-  const mid = 220 + (hash % 480);
-  const spread = 45 + (hash % 45);
+  for (let i = 0; i < raw.length; i++) hash = (hash * 31 + raw.charCodeAt(i)) >>> 0;
+  const mid = 150 + (hash % 170);
+  const spread = 25 + (hash % 25);
   return {
     mid: Math.round(mid / 10) * 10, low: Math.round((mid - spread) / 10) * 10, high: Math.round((mid + spread) / 10) * 10,
-    detected: 'Açıklamanı tam tanıyamadım, kaba bir tahmin bu.',
+    detected: 'Açıklamanı tam tanıyamadım, ortalama bir porsiyon varsayıldı. İstersen "120 kcal" gibi kaloriyi kendin de yazabilirsin.',
   };
+}
+
+/* ---------- paketli ürün araması (Open Food Facts, ücretsiz/anahtarsız) ----------
+   Sadece açıklamada gram/ml/litre gibi somut bir miktar varsa denenir (ör. "Pfanner
+   portakal suyu 330 ml") — yani markalı, paketli bir ürün olduğu belli olduğunda.
+   En fazla 1.5 saniye beklenir; bulunamaz/zaman aşımına uğrarsa sessizce yerel
+   tahmine (estimateCalories) düşülür, kullanıcı asla 2 saniyeden uzun beklemez. */
+async function lookupPackagedProduct(desc, timeoutMs) {
+  if (typeof fetch !== 'function') return null;
+  const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const queryText = desc.replace(new RegExp('\\d+(?:[.,]\\d+)?\\s*(?:' + QTY_UNIT_RE + ')\\b', 'gi'), '').trim();
+    if (!queryText) return null;
+    const url = 'https://world.openfoodfacts.org/cgi/search.pl?json=1&page_size=5&search_terms=' + encodeURIComponent(queryText);
+    const res = await fetch(url, controller ? { signal: controller.signal } : {});
+    if (!res.ok) return null;
+    const data = await res.json();
+    const products = (data && data.products) || [];
+    const qWords = queryText.toLowerCase().split(/\s+/).filter(Boolean);
+    let best = null, bestScore = 0;
+    products.forEach(p => {
+      const name = ((p.product_name || '') + ' ' + (p.brands || '')).toLowerCase();
+      const score = qWords.reduce((acc, w) => acc + (name.includes(w) ? 1 : 0), 0);
+      const per100 = p.nutriments && (p.nutriments['energy-kcal_100g'] || p.nutriments['energy-kcal_100ml']);
+      if (per100 && score > bestScore) { bestScore = score; best = { name: p.product_name || queryText, per100 }; }
+    });
+    if (best && bestScore >= Math.max(1, Math.ceil(qWords.length / 2))) return best;
+    return null;
+  } catch (e) {
+    return null; // ağ yok / zaman aşımı / CORS — sessizce yerel tahmine düş
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+/* Meal/Exercise formundaki "Estimate AI" butonunun çağırdığı ana fonksiyon: önce
+   yerel (anlık) tahmini hazırlar; açıklamada somut bir gramaj/hacim varsa arka
+   planda gerçek ürün veritabanını da dener ve varsa onunla değiştirir. */
+async function estimateCaloriesSmart(desc) {
+  const raw = (desc || '').trim();
+  const local = estimateCalories(raw);
+  if (/\d+(?:[.,]\d+)?\s*(kcal|kalori)\b/i.test(raw.toLowerCase())) return local; // kullanıcı zaten net kalori yazmış
+  const hasPackagedQty = new RegExp('\\d+(?:[.,]\\d+)?\\s*(?:' + QTY_UNIT_RE.split('|').filter(u => ['kilogram', 'kilo', 'kg', 'gram', 'gr', 'g', 'mililitre', 'ml', 'santilitre', 'cl', 'litre', 'lt', 'l'].includes(u)).join('|') + ')\\b', 'i').test(raw.toLowerCase());
+  if (!hasPackagedQty) return local;
+  const qtyMatch = raw.toLowerCase().match(/\d+(?:[.,]\d+)?\s*(?:kilogram|kilo|kg|gram|gr|g|mililitre|ml|santilitre|cl|litre|lt|l)\b/i);
+  const requestedGrams = qtyMatch ? parseQtyToGrams(qtyMatch[0], 100) : null;
+  const remote = await lookupPackagedProduct(raw, 1500);
+  if (remote && requestedGrams) {
+    const mid = Math.max(0, Math.round((remote.per100 * requestedGrams / 100) / 5) * 5);
+    return { mid, low: Math.max(0, mid - 15), high: mid + 15, detected: `Ürün veritabanında bulundu: ${remote.name} (${Math.round(requestedGrams)} g/ml için).` };
+  }
+  return local;
 }
 
 /* ---------------------------------------------------------------------
@@ -1513,10 +1640,19 @@ function wireMealForm(existing) {
     estimateBtn.style.display = descInput.value.trim() ? '' : 'none';
   });
 
-  estimateBtn.addEventListener('click', () => {
+  estimateBtn.addEventListener('click', async () => {
     const desc = descInput.value || document.getElementById('mf-type').value;
-    estimate = estimateCalories(desc);
-    document.getElementById('mf-estimate-box').innerHTML = renderEstimateBox(estimate);
+    const box = document.getElementById('mf-estimate-box');
+    box.innerHTML = '<div class="estimate-box sub">Hesaplanıyor…</div>';
+    estimateBtn.disabled = true;
+    try {
+      estimate = await estimateCaloriesSmart(desc);
+    } finally {
+      estimateBtn.disabled = false;
+    }
+    // Form hâlâ ekrandaysa sonucu göster (kullanıcı bu sırada formu kapatmış olabilir).
+    const stillOpen = document.getElementById('mf-estimate-box');
+    if (stillOpen) stillOpen.innerHTML = renderEstimateBox(estimate);
   });
 
   document.getElementById('mf-cancel').addEventListener('click', () => { document.getElementById('meal-form-holder').innerHTML = ''; });
